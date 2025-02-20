@@ -1,39 +1,35 @@
-### 🛠️ Under Revamping - New Version INCOMING SOON (Oasis Terminal)
+# Oasis - P2P File & Text Sharing
 
-# OASISv1.0.1 - A Decentralized p2p Chat App
+**Oasis** is a peer-to-peer file and text sharing web application built with React and PeerJS. It enables direct, encrypted sharing between users without a central server.
 
-OASISv1.0.1 is a lightweight decentralized chat application inspired by the retro look of Windows 98. This application enables users to generate unique user IDs for anonymous and private communication with peers. The app ensures complete control over user privacy by not storing any user data on servers. Each session requires a new user ID, and all communications are encrypted using [SeaBlockJS](https://www.npmjs.com/package/seablockjs).
+## Core Features
 
-## Features
+- **Peer-to-Peer Sharing**: Connect directly with other users via Peer IDs
+- **File Sharing**: Share files up to browser storage limits
+- **Text Sharing**: Share text snippets with copy-to-clipboard functionality
 
-- **Full Anonymity:** No personal data required, and no information is stored on any servers.
-- **Peer-to-Peer Communication:** Direct communication between peers without intermediaries.
-- **End-to-End Encryption:** All messages are encrypted, ensuring private conversations.
-- **Custom User IDs:** Generate a unique user ID for each session.
-- **No Censorship:** Chat freely without the fear of censorship.
 
-## Getting Started
+## Quick Start
 
-### Prerequisites
+1. **Install dependencies**: `npm install`
+2. **Run dev server**: `npm run dev`
+3. **Build for production**: `npm run build`
 
-To run this application, you need:
+## Project Structure
 
-- A modern web browser that supports HTML5 and JavaScript.
-- [PeerJS](https://peerjs.com/) library for WebRTC peer-to-peer connections.
-- [98.CSS](https://jdan.github.io/98.css/) CSS library for windows 98 classic theme
+```
+src/
+├── App.jsx          # Main app component with PeerJS logic
+├── App.css          # Theming + responsive styles
+├── main.jsx         # Entry point
+└── assets/          # Theme toggle images (on.png, off.png)
+```
 
-### Installation
+## Key Concepts
 
-1. Clone the repository to your local machine:
+> [!NOTE]
+> Each user gets a unique **Peer ID** (6 digits) and **Nickname** (e.g., Phoenix#1234). Share your Peer ID with others to receive files/text.
 
-   ```bash
-   git clone https://github.com/yourusername/OASISv1.0.1.git
+> [!TIP]
+> To send items to another user: (1) Enter their Peer ID in the footer input, (2) Click the send button. Items are queued and sent upon connection.
 
-### Future TODO
-- File Sharing: Allow users to securely share files with each other during chat sessions.
-- Group Chat: Enable multiple users to join a single chat session, facilitating group conversations.
-- Voice and Video Chat: Implement real-time voice and video communication between peers.
-- Improved UI/UX: Enhance the user interface and experience, including responsive design for mobile devices.
-- Offline Messaging: Allow users to send messages even when the recipient is offline, to be delivered when they reconnect.
-- Custom Themes: Provide options for users to customize the look and feel of the application with different themes.
-- Peer Discovery: Implement a feature that allows users to discover peers automatically within a local network.
