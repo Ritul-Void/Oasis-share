@@ -423,6 +423,9 @@ function App() {
                         <button
                           className="file-copy-link"
                           onClick={() => copyToClipboard(item.content)}
+                          type="button"
+                          title="Copy to clipboard"
+                          aria-label="Copy text to clipboard"
                         >
                           copy
                         </button>
@@ -443,14 +446,14 @@ function App() {
                     )}
                   </div>
                 </div>
-                {!item.received && (
-                  <button
-                    className="file-remove"
-                    onClick={() => removeItem(item.id)}
-                  >
-                    ×
-                  </button>
-                )}
+                <button
+                  className="file-remove"
+                  onClick={() => removeItem(item.id)}
+                  title="Delete"
+                  aria-label="Delete item"
+                >
+                  ×
+                </button>
               </div>
             ))}
           </div>

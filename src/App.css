@@ -199,9 +199,27 @@ body {
   color: rgba(255, 255, 255, 0.5);
 }
 
+.file-copy-link,
 .file-download-link {
+  background: none;
+  border: none;
   color: rgba(255, 255, 255, 0.9);
   text-decoration: underline;
+  cursor: pointer;
+  padding: 4px 8px;
+  font-size: 13px;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+.file-copy-link:hover,
+.file-download-link:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.file-copy-link:active,
+.file-download-link:active {
+  background: rgba(255, 255, 255, 0.15);
 }
 
 .file-remove {
@@ -211,10 +229,17 @@ body {
   font-size: 16px;
   cursor: pointer;
   padding: 0 4px;
+  border-radius: 4px;
+  transition: all 0.2s ease;
 }
 
 .file-remove:hover {
   color: rgba(255, 255, 255, 1);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.file-remove:active {
+  background: rgba(255, 255, 255, 0.15);
 }
 .text-dialog-overlay{
   position: absolute;
@@ -239,6 +264,7 @@ body {
     left: 22.5%;
 
   font-size: 12px;
+  margin-bottom: 10px;
 }
 
 .footer-left {
@@ -298,6 +324,7 @@ body {
   font-size: 13px;
   color: #f5f5f5;
   outline: none;
+ 
   min-width: 170px;
 }
 
@@ -353,7 +380,7 @@ body {
   left: 50%;
   bottom: 70px;
   transform: translateX(-50%);
-  z-index: 20;
+  z-index: 999;
 }
 
 .incoming-body {
@@ -504,6 +531,7 @@ body {
   .peerid-input {
     min-width: 120px;
     padding: 6px 10px;
+    font-size: 18px;
   }
 
   .send-button {
