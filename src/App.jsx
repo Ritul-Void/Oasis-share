@@ -109,6 +109,11 @@ function App() {
   /* ---------------- File Transfer ---------------- */
 
   const processFileQueue = async () => {
+    if (!peerRef.current || !connected) {
+      // If not connected, keep files in queue
+      return;
+    }
+
     for (const file of fileQueueRef.current) {
       const buffer = await file.arrayBuffer();
       peerRef.current.send(
@@ -129,8 +134,15 @@ function App() {
       ]);
     }
     fileQueueRef.current = [];
-    setSelectedFiles([]);
+    setSelectedFiles([]); // Clear selected files after processing
   };
+
+  useEffect(() => {
+    if (connected && fileQueueRef.current.length > 0) {
+      processFileQueue();
+    }
+  }, [connected]);
+
 
   const handleIncomingData = (data) => {
     try {
@@ -148,6 +160,8 @@ function App() {
 
     if (peerRef.current._incomingFile) {
       const meta = peerRef.current._incomingFile;
+      // For simplicity, assuming the entire file arrives in one 'data' chunk.
+      // For larger files, you'd need to buffer chunks and reconstruct the file.
       const blob = new Blob([data]);
       const url = URL.createObjectURL(blob);
 
@@ -176,10 +190,15 @@ function App() {
   };
 
   const handleReceive = async () => {
-    const { data } = await apiGet(`/api/peer-offer/${receiveCode}`);
-    initPeer(false, receiveCode);
-    peerRef.current.signal(data.offer);
-    setShowReceiveInput(false);
+    // Attempt to get offer to ensure code is valid before initializing peer
+    const { status, data } = await apiGet(`/api/peer-offer/${receiveCode}`);
+    if (status === 200 && data.offer) {
+      initPeer(false, receiveCode);
+      peerRef.current.signal(data.offer);
+      setShowReceiveInput(false);
+    } else {
+      toast("Invalid or expired connection code.");
+    }
   };
 
   const copyCode = () => {
@@ -211,21 +230,58 @@ function App() {
           onChange={(e) => {
             const files = Array.from(e.target.files);
             setSelectedFiles(files);
-            fileQueueRef.current = files;
+            fileQueueRef.current = files; // Store files in ref for processing on connect
+            if (connected) {
+              processFileQueue(); // If already connected, process immediately
+            }
           }}
         />
 
+        <h6>Selected Files</h6>
+        <div className="file-list-container glass">
+          {selectedFiles.length === 0 ? (
+            <p className="no-files-msg">No files selected.</p>
+          ) : (
+            selectedFiles.map((f, i) => (
+              <div key={i} className="file-item">
+                <span>{f.name} • {f.size} bytes</span>
+              </div>
+            )))
+          }
+        </div>
+
         <h6>Sent</h6>
-        {sentFiles.map((f, i) => (
-          <div key={i}>{f.name} • {f.size} bytes • {f.time}</div>
-        ))}
+        <div className="file-list-container glass">
+          {sentFiles.length === 0 ? (
+            <p className="no-files-msg">No files sent yet.</p>
+          ) : (
+            sentFiles.map((f, i) => (
+              <div key={i} className="file-item">
+                <span>{f.name} • {f.size} bytes • {f.time}</span>
+              </div>
+            )))
+          }
+        </div>
 
         <h6>Received</h6>
-        {receivedFiles.map((f, i) => (
-          <a key={i} href={f.url} download={f.name}>
-            {f.name} • {f.size} bytes • {f.time}
-          </a>
-        ))}
+        <div className="file-list-container glass">
+          {receivedFiles.length === 0 ? (
+            <p className="no-files-msg">No files received yet.</p>
+          ) : (
+            receivedFiles.map((f, i) => (
+              <div key={i} className="file-item">
+                <span>{f.name} • {f.size} bytes • {f.time}</span>
+                <button
+                  onClick={() => window.open(f.url, '_blank')}
+                  className="download-btn"
+                  title="Download File"
+                >
+                  Download
+                </button>
+              </div>
+            )))
+          }
+        </div>
       </div>
 
       {/* Code bar */}
@@ -237,8 +293,8 @@ function App() {
 
       {/* Bottom bar */}
       <div className="bottom-bar glass">
-        <button onClick={handleSend}>Send</button>
-        <button onClick={() => setShowReceiveInput(true)}>Receive</button>
+        <button onClick={handleSend} disabled={connected}>Send</button>
+        <button onClick={() => setShowReceiveInput(true)} disabled={connected}>Receive</button>
       </div>
 
       {showReceiveInput && (
@@ -249,6 +305,7 @@ function App() {
             placeholder="Enter code"
           />
           <button onClick={handleReceive}>Connect</button>
+          <button onClick={() => setShowReceiveInput(false)}>Cancel</button>
         </div>
       )}
     </div>
