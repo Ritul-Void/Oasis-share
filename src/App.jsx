@@ -27,6 +27,7 @@ function App() {
   const [selectedFiles, setSelectedFiles] = useState([]);
   const [sentFiles, setSentFiles] = useState([]);
   const [receivedFiles, setReceivedFiles] = useState([]);
+  const [sendingProgress, setSendingProgress] = useState({}); // New state for progress
 
   const [showCodeBar, setShowCodeBar] = useState(false);
   const [showReceiveInput, setShowReceiveInput] = useState(false);
@@ -35,6 +36,7 @@ function App() {
   const peerRef = useRef(null);
   const pollingRef = useRef(null);
   const fileQueueRef = useRef([]);
+  const sendBufferRef = useRef([]); // To manage file sending in chunks
 
   /* ---------------- API helpers ---------------- */
 
@@ -88,10 +90,25 @@ function App() {
       setConnected(true);
       toast("Connected securely");
       p.send(JSON.stringify({ type: "username", value: myUsername }));
+      console.log("Peer connected. Username sent.");
       processFileQueue();
     });
 
-    p.on("data", (data) => handleIncomingData(data));
+    p.on("data", (data) => {
+      console.log("Peer 'data' event fired. Data length:", data.length || data.byteLength);
+      handleIncomingData(data)
+    });
+
+    p.on("close", () => {
+      console.log("Peer connection closed.");
+      setConnected(false);
+      toast("Peer disconnected.");
+      clearInterval(pollingRef.current);
+    });
+    p.on("error", (err) => {
+      console.error("Peer error:", err);
+      toast("Peer connection error.");
+    });
 
     peerRef.current = p;
   };
@@ -108,74 +125,143 @@ function App() {
 
   /* ---------------- File Transfer ---------------- */
 
+  const CHUNK_SIZE = 16 * 1024; // 16KB chunks
+
+  const sendFileInChunks = async (file) => {
+    const fileId = `${file.name}-${file.size}`;
+    const startTime = Date.now(); // Capture startTime once at the beginning
+    console.log(`Sending file metadata for ${file.name} (ID: ${fileId})`);
+    setSendingProgress((prev) => ({ ...prev, [fileId]: { progress: 0, speed: 0, startTime: startTime } })); // Use the local startTime
+
+    peerRef.current.send(
+      JSON.stringify({
+        type: "file-meta",
+        name: file.name,
+        size: file.size,
+        fileId: fileId,
+      })
+    );
+
+    const buffer = await file.arrayBuffer();
+    let offset = 0;
+
+    while (offset < buffer.byteLength) {
+      const chunk = buffer.slice(offset, offset + CHUNK_SIZE);
+      peerRef.current.send(chunk);
+      offset += chunk.byteLength;
+      console.log(`Sent chunk for ${file.name}. Offset: ${offset}/${buffer.byteLength}`);
+
+      const progress = (offset / buffer.byteLength) * 100;
+      const elapsedTime = (Date.now() - startTime) / 1000; // Use the local startTime here
+      const speed = offset / elapsedTime / 1024; // KB/s
+
+      setSendingProgress((prev) => ({
+        ...prev,
+        [fileId]: { ...prev[fileId], progress: progress, speed: speed }
+      }));
+      await new Promise(resolve => setTimeout(resolve, 10)); // Small delay to prevent blocking
+    }
+
+    peerRef.current.send(
+      JSON.stringify({
+        type: "file-end",
+        fileId: fileId,
+      })
+    );
+    console.log(`Sent file-end for ${file.name} (ID: ${fileId})`);
+
+    setSentFiles((s) => [
+      ...s,
+      {
+        name: file.name,
+        size: file.size,
+        time: new Date().toLocaleTimeString(),
+        fileId: fileId,
+      }
+    ]);
+    setSendingProgress((prev) => {
+      const newState = { ...prev };
+      delete newState[fileId];
+      return newState;
+    });
+    console.log(`File ${file.name} marked as sent.`);
+  };
+
   const processFileQueue = async () => {
+    console.log("processFileQueue called. Connected:", connected, "Queue length:", fileQueueRef.current.length);
     if (!peerRef.current || !connected) {
-      // If not connected, keep files in queue
+      console.log("processFileQueue: Not connected or no peerRef. Returning.");
       return;
     }
 
-    for (const file of fileQueueRef.current) {
-      const buffer = await file.arrayBuffer();
-      peerRef.current.send(
-        JSON.stringify({
-          type: "file-meta",
-          name: file.name,
-          size: file.size
-        })
-      );
-      peerRef.current.send(buffer);
-      setSentFiles((s) => [
-        ...s,
-        {
-          name: file.name,
-          size: file.size,
-          time: new Date().toLocaleTimeString()
-        }
-      ]);
+    while (fileQueueRef.current.length > 0) {
+      const file = fileQueueRef.current.shift(); // Get file from the front of the queue
+      console.log("Processing file from queue:", file.name);
+      await sendFileInChunks(file);
     }
-    fileQueueRef.current = [];
     setSelectedFiles([]); // Clear selected files after processing
+    console.log("File queue processed. Selected files cleared.");
   };
 
   useEffect(() => {
+    console.log("useEffect: Connected status changed or fileQueueRef changed. Connected:", connected, "Queue length:", fileQueueRef.current.length);
     if (connected && fileQueueRef.current.length > 0) {
       processFileQueue();
     }
-  }, [connected]);
-
+  }, [connected, fileQueueRef.current.length]); // Added fileQueueRef.current.length to dependency array
 
   const handleIncomingData = (data) => {
+    console.log("handleIncomingData received data. Type:", typeof data, "Length:", data.length || data.byteLength);
+
+    // If a file transfer is currently active, assume incoming data is a file chunk
+    if (peerRef.current && peerRef.current._incomingFile) {
+      peerRef.current._incomingFile.receivedChunks.push(data);
+      console.log(`Received file chunk for ${peerRef.current._incomingFile.name}. Total chunks: ${peerRef.current._incomingFile.receivedChunks.length}`);
+      return; // Crucial: return after handling a chunk
+    }
+
+    // If no file transfer is active, try to parse as JSON for control messages
     try {
       const msg = JSON.parse(data.toString());
+      console.log("Parsed incoming message:", msg);
       if (msg.type === "username") {
         setPeerUsername(msg.value);
         return;
       }
       if (msg.type === "file-meta") {
-        peerRef.current._incomingFile = msg;
-        peerRef.current._incomingChunks = [];
+        peerRef.current._incomingFile = { ...msg, receivedChunks: [] };
+        peerRef.current._incomingFile.startTime = Date.now();
+        console.log("Received file-meta:", msg.name);
         return;
       }
-    } catch {}
+      if (msg.type === "file-end") {
+        const meta = peerRef.current._incomingFile;
+        console.log("Received file-end for:", meta ? meta.name : "unknown file");
+        const blob = new Blob(meta.receivedChunks);
+        const url = URL.createObjectURL(blob);
 
-    if (peerRef.current._incomingFile) {
-      const meta = peerRef.current._incomingFile;
-      // For simplicity, assuming the entire file arrives in one 'data' chunk.
-      // For larger files, you'd need to buffer chunks and reconstruct the file.
-      const blob = new Blob([data]);
-      const url = URL.createObjectURL(blob);
+        const endTime = Date.now();
+        const duration = (endTime - meta.startTime) / 1000;
+        const speed = (meta.size / duration / 1024).toFixed(2);
 
-      setReceivedFiles((r) => [
-        ...r,
-        {
-          name: meta.name,
-          size: meta.size,
-          url,
-          time: new Date().toLocaleTimeString()
-        }
-      ]);
-
-      peerRef.current._incomingFile = null;
+        setReceivedFiles((r) => [
+          ...r,
+          {
+            name: meta.name,
+            size: meta.size,
+            url,
+            time: new Date().toLocaleTimeString(),
+            speed: speed,
+          }
+        ]);
+        peerRef.current._incomingFile = null;
+        console.log(`File ${meta.name} received and processed.`);
+        return;
+      }
+    } catch (e) {
+      // This catch block will now primarily handle unexpected non-JSON data
+      // when no file transfer is active.
+      console.warn("Received unexpected non-JSON data when no file transfer was active or JSON parsing failed:", e);
     }
   };
 
@@ -190,7 +276,6 @@ function App() {
   };
 
   const handleReceive = async () => {
-    // Attempt to get offer to ensure code is valid before initializing peer
     const { status, data } = await apiGet(`/api/peer-offer/${receiveCode}`);
     if (status === 200 && data.offer) {
       initPeer(false, receiveCode);
@@ -204,6 +289,20 @@ function App() {
   const copyCode = () => {
     navigator.clipboard.writeText(peerId);
     toast("Code copied");
+  };
+
+  const handleFileChange = (e) => {
+    const files = Array.from(e.target.files);
+    setSelectedFiles((prev) => [...prev, ...files]);
+    fileQueueRef.current = [...fileQueueRef.current, ...files];
+    if (connected) {
+      processFileQueue();
+    }
+  };
+
+  const handleRemoveSelectedFile = (indexToRemove) => {
+    setSelectedFiles((prev) => prev.filter((_, index) => index !== indexToRemove));
+    fileQueueRef.current = fileQueueRef.current.filter((_, index) => index !== indexToRemove);
   };
 
   /* ---------------- Render ---------------- */
@@ -224,18 +323,19 @@ function App() {
         <h6>You: {myUsername}</h6>
         {peerUsername && <h6>Connected with: {peerUsername}</h6>}
 
-        <input
-          type="file"
-          multiple
-          onChange={(e) => {
-            const files = Array.from(e.target.files);
-            setSelectedFiles(files);
-            fileQueueRef.current = files; // Store files in ref for processing on connect
-            if (connected) {
-              processFileQueue(); // If already connected, process immediately
-            }
-          }}
-        />
+        <div className="file-input-container">
+          <input
+            type="file"
+            multiple
+            id="file-upload"
+            className="file-input-hidden"
+            onChange={handleFileChange}
+          />
+          <label htmlFor="file-upload" className="file-input-label glass">
+            <i className="bi bi-upload"></i> Choose Files
+          </label>
+        </div>
+
 
         <h6>Selected Files</h6>
         <div className="file-list-container glass">
@@ -244,7 +344,14 @@ function App() {
           ) : (
             selectedFiles.map((f, i) => (
               <div key={i} className="file-item">
-                <span>{f.name} • {f.size} bytes</span>
+                <span>{f.name} • {(f.size / 1024 / 1024).toFixed(2)} MB</span>
+                <button
+                  onClick={() => handleRemoveSelectedFile(i)}
+                  className="remove-file-btn"
+                  title="Remove File"
+                >
+                  &times;
+                </button>
               </div>
             )))
           }
@@ -257,7 +364,19 @@ function App() {
           ) : (
             sentFiles.map((f, i) => (
               <div key={i} className="file-item">
-                <span>{f.name} • {f.size} bytes • {f.time}</span>
+                <span>{f.name} • {(f.size / 1024 / 1024).toFixed(2)} MB • {f.time}</span>
+                {sendingProgress[f.fileId] && (
+                  <div className="progress-bar-container">
+                    <div
+                      className="progress-bar"
+                      style={{ width: `${sendingProgress[f.fileId].progress}%` }}
+                    ></div>
+                    <span className="progress-text">
+                      {sendingProgress[f.fileId].progress.toFixed(0)}% (
+                      {sendingProgress[f.fileId].speed.toFixed(2)} KB/s)
+                    </span>
+                  </div>
+                )}
               </div>
             )))
           }
@@ -270,7 +389,8 @@ function App() {
           ) : (
             receivedFiles.map((f, i) => (
               <div key={i} className="file-item">
-                <span>{f.name} • {f.size} bytes • {f.time}</span>
+                <span>{f.name} • {(f.size / 1024 / 1024).toFixed(2)} MB • {f.time}</span>
+                {f.speed && <span className="transfer-speed"> ({f.speed} KB/s)</span>}
                 <button
                   onClick={() => window.open(f.url, '_blank')}
                   className="download-btn"
