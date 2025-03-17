@@ -567,10 +567,7 @@ function App() {
     className: "app-header glass"
   }, React.createElement("div", {
     className: "brand"
-  }, React.createElement("img", {
-    src: "src/assets/logo-oasis-share.png",
-    alt: ""
-  })), React.createElement("div", {
+  }, React.createElement("h1", null, "Oasis-Share")), React.createElement("div", {
     className: "user-status"
   }, React.createElement("div", {
     className: "user-pill glass-interactive"

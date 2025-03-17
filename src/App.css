@@ -82,13 +82,15 @@ body {
 
 
 .app-header {
-  margin: 20px;
-  padding: 12px 24px;
-  border-radius: var(--radius-lg);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  z-index: 100;
+    margin: 0px 20px;
+    padding: 12px 24px;
+    border-radius: var(--radius-lg);
+    border-top-left-radius: 0;
+    border-top-right-radius: 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    z-index: 100;
 }
 
 .brand {
