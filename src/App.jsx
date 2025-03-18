@@ -246,7 +246,7 @@ function App() {
           });
         }
       });
-      p.on("connect", () => {
+      p.on("connect", async () => {
         setConnected(true);
         setIsConnecting(false);
         toast("Secure connection established");
@@ -255,6 +255,17 @@ function App() {
           value: myUsername
         }));
         processFileQueue();
+        const info = await detectConnectionType(p);
+        if (info) {
+          console.log("Connection info:", info);
+          if (info.localType === "host" && info.remoteType === "host") {
+            toast("Local network connection (LAN)");
+          } else if (info.localType === "relay" || info.remoteType === "relay") {
+            toast("Connected via relay (TURN)");
+          } else {
+            toast("Connected via internet (STUN)");
+          }
+        }
       });
       p.on("data", data => {
         handleIncomingData(data);
@@ -553,6 +564,33 @@ function App() {
       cancellationTokensRef.current[fileId] = true;
       toast("Cancelling...");
     }
+  };
+  const detectConnectionType = async peer => {
+    const pc = peer._pc;
+    if (!pc) return null;
+    const stats = await pc.getStats();
+    let selectedPair = null;
+    let localCandidate = null;
+    let remoteCandidate = null;
+    stats.forEach(report => {
+      if (report.type === "transport" && report.selectedCandidatePairId) {
+        selectedPair = report.selectedCandidatePairId;
+      }
+    });
+    stats.forEach(report => {
+      if (report.type === "candidate-pair" && report.id === selectedPair) {
+        localCandidate = stats.get(report.localCandidateId);
+        remoteCandidate = stats.get(report.remoteCandidateId);
+      }
+    });
+    if (!localCandidate || !remoteCandidate) return null;
+    return {
+      localType: localCandidate.candidateType,
+      remoteType: remoteCandidate.candidateType,
+      localIp: localCandidate.address,
+      remoteIp: remoteCandidate.address,
+      protocol: localCandidate.protocol
+    };
   };
   const unifiedHistory = [...sentFiles.map(f => ({
     ...f,
