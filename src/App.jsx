@@ -196,6 +196,15 @@ function App() {
   const pollingRef = useRef(null);
   const fileQueueRef = useRef([]);
   const cancellationTokensRef = useRef({});
+  const bufferLowResolversRef = useRef([]);
+  const dataChannelRef = useRef(null);
+  const incomingFileRef = useRef(null);
+  const activeSendFilesRef = useRef(new Map());
+  const receiverWorkerRef = useRef(null);
+  const BUFFERED_THRESHOLD = 256 * 1024;
+  const MAX_QUEUE_BYTES = 4 * 1024 * 1024;
+  const BACKOFF_BASE_MS = 150;
+  const BACKOFF_MAX_ATTEMPTS = 5;
   const apiPost = async (path, body) => {
     const res = await fetch(SIGNALING_BASE_URL + path, {
       method: "POST",
@@ -246,28 +255,29 @@ function App() {
           });
         }
       });
-      p.on("connect", async () => {
+      p.on("connect", () => {
         setConnected(true);
         setIsConnecting(false);
         toast("Secure connection established");
+        const dc = p._channel;
+        if (dc) {
+          dataChannelRef.current = dc;
+          dc.binaryType = "arraybuffer";
+          dc.bufferedAmountLowThreshold = BUFFERED_THRESHOLD;
+          dc.onbufferedamountlow = () => {
+            const resolvers = bufferLowResolversRef.current.splice(0);
+            resolvers.forEach(r => r());
+          };
+          logDeviceSnapshot(dc);
+        }
         p.send(JSON.stringify({
           type: "username",
           value: myUsername
         }));
         processFileQueue();
-        const info = await detectConnectionType(p);
-        if (info) {
-          console.log("Connection info:", info);
-          if (info.localType === "host" && info.remoteType === "host") {
-            toast("Local network connection (LAN)");
-          } else if (info.localType === "relay" || info.remoteType === "relay") {
-            toast("Connected via relay (TURN)");
-          } else {
-            toast("Connected via internet (STUN)");
-          }
-        }
       });
       p.on("data", data => {
+        console.log("[oasis-share] p.on('data') fired with", typeof data, data instanceof ArrayBuffer ? "ArrayBuffer" : data instanceof Uint8Array ? "Uint8Array" : "string");
         handleIncomingData(data);
       });
       p.on("close", () => {
@@ -275,6 +285,8 @@ function App() {
         setIsConnecting(false);
         toast("Peer disconnected.");
         clearInterval(pollingRef.current);
+        dataChannelRef.current = null;
+        bufferLowResolversRef.current.splice(0).forEach(r => r());
       });
       p.on("error", err => {
         console.error("Peer error:", err);
@@ -300,19 +312,226 @@ function App() {
       }
     }, 2000);
   };
-  const CHUNK_SIZE = 16 * 1024;
-  const handleControlMessage = msg => {
+  const detectMobile = () => /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent || "");
+  const getAdaptiveChunkSize = () => {
+    const dm = navigator.deviceMemory || 4;
+    if (detectMobile()) {
+      if (dm <= 2) return 16 * 1024;
+      if (dm <= 4) return 24 * 1024;
+      return 32 * 1024;
+    }
+    if (dm >= 8) return 128 * 1024;
+    return 96 * 1024;
+  };
+  const waitForDataChannelBuffer = dc => {
+    if (!dc) return Promise.resolve();
+    if (dc.bufferedAmount <= BUFFERED_THRESHOLD) return Promise.resolve();
+    return new Promise(resolve => bufferLowResolversRef.current.push(resolve));
+  };
+  const sendWithRetry = async (dc, payload) => {
+    let attempt = 0;
+    while (true) {
+      try {
+        await waitForDataChannelBuffer(dc);
+        dc.send(payload);
+        return;
+      } catch (err) {
+        attempt += 1;
+        if (attempt > BACKOFF_MAX_ATTEMPTS) {
+          throw err;
+        }
+        const delay = Math.min(BACKOFF_BASE_MS * 2 ** (attempt - 1), 2000);
+        await new Promise(res => setTimeout(res, delay));
+      }
+    }
+  };
+  const logDeviceSnapshot = dc => {
+    try {
+      console.log("[oasis-share] device snapshot", {
+        deviceMemory: navigator.deviceMemory,
+        performanceMemory: performance?.memory,
+        bufferedAmount: dc?.bufferedAmount,
+        isMobile: detectMobile(),
+        chunkSize: getAdaptiveChunkSize()
+      });
+    } catch (e) {
+      console.debug("snapshot log skipped", e);
+    }
+  };
+  const createWritableSink = async meta => {
+    if (window.showSaveFilePicker && window.WritableStream) {
+      const handle = await window.showSaveFilePicker({
+        suggestedName: meta.name
+      });
+      const writable = await handle.createWritable();
+      let position = meta.startOffset || 0;
+      if (position > 0) {
+        await writable.write({
+          type: "seek",
+          position
+        });
+      }
+      return {
+        mode: "file-system",
+        write: async chunk => {
+          await writable.write({
+            type: "write",
+            position,
+            data: chunk
+          });
+          position += chunk.byteLength;
+        },
+        seek: async pos => {
+          await writable.write({
+            type: "seek",
+            position: pos
+          });
+          position = pos;
+        },
+        close: () => writable.close(),
+        abort: () => writable.abort()
+      };
+    }
+    if (window.streamSaver) {
+      const fileStream = window.streamSaver.createWriteStream(meta.name, {
+        size: meta.size
+      });
+      const writer = fileStream.getWriter();
+      return {
+        mode: "stream-saver",
+        write: chunk => writer.write(chunk),
+        close: () => writer.close(),
+        abort: () => writer.abort?.()
+      };
+    }
+    const fallbackChunks = [];
+    return {
+      mode: "memory",
+      write: async chunk => fallbackChunks.push(chunk),
+      close: async () => {
+        const blob = new Blob(fallbackChunks);
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = meta.name;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      },
+      abort: async () => {
+        fallbackChunks.length = 0;
+      }
+    };
+  };
+  const resetIncomingState = async fileId => {
+    const state = incomingFileRef.current;
+    if (state && (!fileId || state.fileId === fileId)) {
+      try {
+        await state.sink?.abort?.();
+      } catch (e) {
+        console.warn("Failed to abort sink", e);
+      }
+    }
+    incomingFileRef.current = null;
+  };
+  const sendControlMessage = payload => {
+    if (!peerRef.current) return;
+    peerRef.current.send(JSON.stringify(payload));
+  };
+  const requestResume = (fileId, offset = 0) => {
+    sendControlMessage({
+      type: "resume-file",
+      fileId,
+      offset
+    });
+  };
+  const enqueueIncomingChunk = chunk => {
+    const state = incomingFileRef.current;
+    if (!state) return;
+    state.queue.push(chunk);
+    state.queueBytes += chunk.byteLength;
+    if (!state.flushPromise) {
+      state.flushPromise = (async () => {
+        while (state.queue.length > 0) {
+          const next = state.queue.shift();
+          state.queueBytes -= next.byteLength;
+          await state.sink.write(next);
+          state.receivedBytes += next.byteLength;
+          const progress = state.receivedBytes / state.size * 100;
+          const elapsedTime = (Date.now() - state.startTime) / 1000;
+          const speed = state.receivedBytes / elapsedTime / 1024;
+          setReceivingProgress(prev => ({
+            ...prev,
+            [state.fileId]: {
+              ...prev[state.fileId],
+              receivedBytes: state.receivedBytes,
+              progress,
+              speed
+            }
+          }));
+        }
+      })().catch(async err => {
+        console.error("Error writing incoming chunk", err);
+        sendControlMessage({
+          type: "cancel-file",
+          fileId: state.fileId
+        });
+        requestResume(state.fileId, state.receivedBytes);
+        await resetIncomingState(state.fileId);
+        setReceivingProgress(prev => {
+          const n = {
+            ...prev
+          };
+          delete n[state.fileId];
+          return n;
+        });
+        toast("Incoming transfer halted; attempting resume");
+      }).finally(() => {
+        const active = incomingFileRef.current;
+        if (active) {
+          active.flushPromise = null;
+        }
+      });
+    }
+    if (state.queueBytes > MAX_QUEUE_BYTES) {
+      console.warn("Incoming queue above target window", state.queueBytes);
+    }
+  };
+  const handleIncomingChunk = chunk => {
+    console.log("[oasis-share] handleIncomingChunk called with", chunk.byteLength || chunk.length, "bytes");
+    if (!(chunk instanceof Uint8Array)) {
+      chunk = new Uint8Array(chunk);
+    }
+    receiverWorkerRef.current.postMessage({
+      type: "chunk",
+      payload: chunk
+    }, [chunk.buffer]);
+  };
+  const debugLogIncomingData = data => {
+    console.log("[oasis-share] Received data event", {
+      type: typeof data,
+      isArrayBuffer: data instanceof ArrayBuffer,
+      isUint8Array: data instanceof Uint8Array,
+      length: data?.length || data?.byteLength || 0,
+      sample: data instanceof Uint8Array ? `[${data.slice(0, 8).join(",")}...]` : String(data).slice(0, 100)
+    });
+  };
+  const handleControlMessage = async msg => {
     if (msg.type === "username") {
       setPeerUsername(msg.value);
       return;
     }
     if (msg.type === "file-meta") {
-      peerRef.current._incomingFile = {
+      console.log("[oasis-share] file-meta received", msg);
+      incomingFileRef.current = {
         ...msg,
-        receivedChunks: [],
-        receivedBytes: 0,
         startTime: Date.now()
       };
+      receiverWorkerRef.current.postMessage({
+        type: "meta",
+        payload: msg
+      });
       setReceivingProgress(prev => ({
         ...prev,
         [msg.fileId]: {
@@ -328,40 +547,17 @@ function App() {
       return;
     }
     if (msg.type === "file-end") {
-      const meta = peerRef.current._incomingFile;
-      const blob = new Blob(meta.receivedChunks);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = meta.name;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      setTimeout(() => URL.revokeObjectURL(url), 60_000);
-      const endTime = Date.now();
-      const duration = (endTime - meta.startTime) / 1000;
-      const speed = (meta.size / duration / 1024).toFixed(2);
-      setReceivedFiles(r => [...r, {
-        name: meta.name,
-        size: meta.size,
-        time: new Date().toLocaleTimeString(),
-        speed: speed,
-        fileId: meta.fileId,
-        status: "completed"
-      }]);
-      peerRef.current._incomingFile = null;
-      setReceivingProgress(prev => {
-        const n = {
-          ...prev
-        };
-        delete n[meta.fileId];
-        return n;
+      console.log("[oasis-share] file-end received for", msg.fileId);
+      receiverWorkerRef.current.postMessage({
+        type: "end"
       });
-      toast(`Received ${meta.name}`);
       return;
     }
     if (msg.type === "cancel-file") {
-      peerRef.current._incomingFile = null;
+      if (cancellationTokensRef.current[msg.fileId] !== undefined) {
+        cancellationTokensRef.current[msg.fileId] = true;
+      }
+      await resetIncomingState(msg.fileId);
       setReceivingProgress(prev => {
         const n = {
           ...prev
@@ -370,85 +566,137 @@ function App() {
         return n;
       });
       toast("Transfer cancelled");
+      return;
+    }
+    if (msg.type === "resume-file") {
+      const sourceFile = activeSendFilesRef.current.get(msg.fileId);
+      if (sourceFile) {
+        await sendFileInChunks(sourceFile, {
+          fileId: msg.fileId,
+          startOffset: msg.offset || 0,
+          isResume: true
+        });
+      }
     }
   };
-  const sendFileInChunks = async file => {
-    const fileId = `${file.name}-${file.size}-${Date.now()}`;
+  const sendFileInChunks = async (file, options = {}) => {
+    const fileId = options.fileId || `${file.name}-${file.size}-${Date.now()}`;
+    const startOffset = options.startOffset || 0;
     const startTime = Date.now();
+    const dc = dataChannelRef.current || peerRef.current?._channel;
+    let keepForResume = false;
+    let lastMetricLog = Date.now();
+    if (!dc) {
+      toast("Data channel not ready");
+      return;
+    }
+    dataChannelRef.current = dc;
     cancellationTokensRef.current[fileId] = false;
+    activeSendFilesRef.current.set(fileId, file);
     setSendingProgress(prev => ({
       ...prev,
       [fileId]: {
-        progress: 0,
+        progress: startOffset / file.size * 100,
         speed: 0,
-        startTime: startTime,
-        status: "sending",
+        startTime,
+        status: options.isResume ? "resuming" : "sending",
         size: file.size,
         name: file.name,
-        fileId: fileId
+        fileId
       }
     }));
     try {
-      peerRef.current.send(JSON.stringify({
+      await sendWithRetry(dc, JSON.stringify({
         type: "file-meta",
         name: file.name,
         size: file.size,
-        fileId: fileId
+        fileId,
+        startOffset
       }));
-      const buffer = await file.arrayBuffer();
-      let offset = 0;
-      while (offset < buffer.byteLength) {
-        if (cancellationTokensRef.current[fileId] === true) {
-          console.log(`Sending of ${file.name} cancelled by user.`);
-          try {
-            peerRef.current.send(JSON.stringify({
-              type: "cancel-file",
-              fileId: fileId
-            }));
-          } catch (e) {
-            console.error("Error sending cancel message:", e);
-          }
-          setSendingProgress(prev => {
-            const newState = {
-              ...prev
-            };
-            delete newState[fileId];
-            return newState;
-          });
-          delete cancellationTokensRef.current[fileId];
-          toast(`Transfer of ${file.name} cancelled`);
-          return;
+      logDeviceSnapshot(dc);
+      const reader = file.slice(startOffset).stream().getReader();
+      const chunkSize = getAdaptiveChunkSize();
+      let offset = startOffset;
+      let done = false;
+      while (!done) {
+        const {
+          value,
+          done: streamDone
+        } = await reader.read();
+        if (streamDone || !value) {
+          done = true;
+          break;
         }
-        const chunk = buffer.slice(offset, offset + CHUNK_SIZE);
-        peerRef.current.send(chunk);
-        offset += chunk.byteLength;
-        const progress = offset / buffer.byteLength * 100;
-        const elapsedTime = (Date.now() - startTime) / 1000;
-        const speed = offset / elapsedTime / 1024;
-        setSendingProgress(prev => ({
-          ...prev,
-          [fileId]: {
-            ...prev[fileId],
-            progress: progress,
-            speed: speed
+        let cursor = 0;
+        while (cursor < value.length) {
+          if (cancellationTokensRef.current[fileId]) {
+            sendControlMessage({
+              type: "cancel-file",
+              fileId
+            });
+            keepForResume = true;
+            setSendingProgress(prev => {
+              const newState = {
+                ...prev
+              };
+              delete newState[fileId];
+              return newState;
+            });
+            toast(`Transfer of ${file.name} cancelled`);
+            return;
           }
-        }));
-        await new Promise(resolve => setTimeout(resolve, 0));
+          const slice = value.subarray(cursor, cursor + chunkSize);
+          await sendWithRetry(dc, new Uint8Array(slice));
+          offset += slice.byteLength;
+          cursor += slice.byteLength;
+          const progress = offset / file.size * 100;
+          const elapsedTime = (Date.now() - startTime) / 1000;
+          const speed = offset / elapsedTime / 1024;
+          if (Date.now() - lastMetricLog > 1000) {
+            console.log("[oasis-share] send metrics", {
+              deviceMemory: navigator.deviceMemory,
+              performanceMemory: performance?.memory,
+              bufferedAmount: dc?.bufferedAmount,
+              offset,
+              chunkSize
+            });
+            lastMetricLog = Date.now();
+          }
+          setSendingProgress(prev => ({
+            ...prev,
+            [fileId]: {
+              ...prev[fileId],
+              progress,
+              speed
+            }
+          }));
+        }
       }
-      peerRef.current.send(JSON.stringify({
+      await sendWithRetry(dc, JSON.stringify({
         type: "file-end",
-        fileId: fileId
+        fileId
       }));
       setSentFiles(s => [...s, {
         name: file.name,
         size: file.size,
         time: new Date().toLocaleTimeString(),
-        fileId: fileId,
+        fileId,
         status: "completed"
       }]);
     } catch (error) {
       console.error("Error sending file:", error);
       toast(`Error sending ${file.name}`);
+      sendControlMessage({
+        type: "cancel-file",
+        fileId
+      });
+      keepForResume = true;
+      try {
+        peerRef.current?.destroy?.();
+        setConnected(false);
+      } catch (e) {
+        console.error("Failed to close peer after send error", e);
+      }
     } finally {
       setSendingProgress(prev => {
         const newState = {
@@ -458,6 +706,9 @@ function App() {
         return newState;
       });
       delete cancellationTokensRef.current[fileId];
+      if (!keepForResume) {
+        activeSendFilesRef.current.delete(fileId);
+      }
     }
   };
   const processFileQueue = async () => {
@@ -471,41 +722,85 @@ function App() {
     setSelectedFiles([]);
   };
   useEffect(() => {
+    receiverWorkerRef.current = new Worker(new URL("./fileReceiver.worker.js", import.meta.url), {
+      type: "module"
+    });
+    receiverWorkerRef.current.onmessage = e => {
+      const {
+        type,
+        blob,
+        name,
+        receivedBytes,
+        size,
+        fileId
+      } = e.data;
+      if (type === "progress") {
+        const elapsedTime = (Date.now() - (incomingFileRef.current?.startTime || Date.now())) / 1000;
+        const speed = receivedBytes / elapsedTime / 1024;
+        setReceivingProgress(prev => ({
+          ...prev,
+          [fileId]: {
+            ...prev[fileId],
+            receivedBytes,
+            progress: receivedBytes / size * 100,
+            speed
+          }
+        }));
+      }
+      if (type === "done") {
+        console.log("[oasis-share] File transfer complete, triggering download");
+        triggerDownload(blob, name, fileId, receivedBytes);
+      }
+    };
+    return () => {
+      if (receiverWorkerRef.current) {
+        receiverWorkerRef.current.terminate();
+      }
+    };
+  }, []);
+  useEffect(() => {
     if (connected && fileQueueRef.current.length > 0) {
       processFileQueue();
     }
   }, [connected, fileQueueRef.current.length]);
   const handleIncomingData = data => {
+    debugLogIncomingData(data);
     if (typeof data === "string") {
-      handleControlMessage(JSON.parse(data));
+      console.log("[oasis-share] handleIncomingData: processing string control message");
+      handleControlMessage(JSON.parse(data)).catch(err => console.error("control message error", err));
       return;
     }
-    if (data instanceof Uint8Array) {
-      try {
-        const text = new TextDecoder().decode(data);
-        if (text.startsWith("{") && text.endsWith("}")) {
-          handleControlMessage(JSON.parse(text));
-          return;
-        }
-      } catch (e) {}
-      if (peerRef.current?._incomingFile) {
-        const meta = peerRef.current._incomingFile;
-        meta.receivedChunks.push(data);
-        meta.receivedBytes += data.byteLength;
-        const progress = meta.receivedBytes / meta.size * 100;
-        const elapsedTime = (Date.now() - meta.startTime) / 1000;
-        const speed = meta.receivedBytes / elapsedTime / 1024;
-        setReceivingProgress(prev => ({
-          ...prev,
-          [meta.fileId]: {
-            ...prev[meta.fileId],
-            receivedBytes: meta.receivedBytes,
-            progress,
-            speed
+    if (data instanceof Uint8Array || data instanceof ArrayBuffer) {
+      const bytes = data instanceof Uint8Array ? data : new Uint8Array(data);
+      if (bytes[0] === 123 || bytes[0] === 91 || bytes[0] === 34) {
+        try {
+          const text = new TextDecoder().decode(bytes);
+          if (text.startsWith("{") || text.startsWith("[") || text.startsWith('"')) {
+            console.log("[oasis-share] handleIncomingData: detected JSON in Uint8Array, parsing as control message");
+            handleControlMessage(JSON.parse(text)).catch(err => console.error("control message error", err));
+            return;
           }
-        }));
+        } catch (e) {
+          console.debug("Failed to decode as JSON, treating as binary chunk", e);
+        }
+      }
+      if (data instanceof ArrayBuffer) {
+        console.log("[oasis-share] handleIncomingData: processing ArrayBuffer chunk", data.byteLength, "bytes");
+        handleIncomingChunk(new Uint8Array(data));
+        return;
+      }
+      if (data instanceof Uint8Array) {
+        console.log("[oasis-share] handleIncomingData: processing Uint8Array chunk", data.byteLength, "bytes");
+        handleIncomingChunk(data);
+        return;
       }
     }
+    if (data?.buffer) {
+      console.log("[oasis-share] handleIncomingData: processing typed array with .buffer", data.buffer.byteLength, "bytes");
+      handleIncomingChunk(new Uint8Array(data.buffer));
+      return;
+    }
+    console.warn("[oasis-share] handleIncomingData: unknown data type, ignoring", typeof data, data);
   };
   const handleSend = () => {
     const id = generatePeerId();
@@ -565,32 +860,40 @@ function App() {
       toast("Cancelling...");
     }
   };
-  const detectConnectionType = async peer => {
-    const pc = peer._pc;
-    if (!pc) return null;
-    const stats = await pc.getStats();
-    let selectedPair = null;
-    let localCandidate = null;
-    let remoteCandidate = null;
-    stats.forEach(report => {
-      if (report.type === "transport" && report.selectedCandidatePairId) {
-        selectedPair = report.selectedCandidatePairId;
-      }
-    });
-    stats.forEach(report => {
-      if (report.type === "candidate-pair" && report.id === selectedPair) {
-        localCandidate = stats.get(report.localCandidateId);
-        remoteCandidate = stats.get(report.remoteCandidateId);
-      }
-    });
-    if (!localCandidate || !remoteCandidate) return null;
-    return {
-      localType: localCandidate.candidateType,
-      remoteType: remoteCandidate.candidateType,
-      localIp: localCandidate.address,
-      remoteIp: remoteCandidate.address,
-      protocol: localCandidate.protocol
-    };
+  const triggerDownload = (blob, name, fileId, receivedBytes) => {
+    try {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = name;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      const endTime = Date.now();
+      const duration = (endTime - (incomingFileRef.current?.startTime || Date.now())) / 1000;
+      const speed = (receivedBytes / duration / 1024).toFixed(2);
+      setReceivedFiles(r => [...r, {
+        name,
+        size: receivedBytes,
+        time: new Date().toLocaleTimeString(),
+        speed,
+        fileId,
+        status: "completed"
+      }]);
+      incomingFileRef.current = null;
+      setReceivingProgress(prev => {
+        const n = {
+          ...prev
+        };
+        delete n[fileId];
+        return n;
+      });
+      toast(`Received ${name}`);
+    } catch (error) {
+      console.error("Error downloading file:", error);
+      toast(`Error saving ${name}`);
+    }
   };
   const unifiedHistory = [...sentFiles.map(f => ({
     ...f,

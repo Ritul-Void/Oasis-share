@@ -488,7 +488,16 @@ body {
   gap: 16px;
   background: var(--bg-subtle);
 }
-
+.transfer-top .name {
+  font-size: 0.9rem;
+  word-break: break-all;
+  white-space: normal;      
+  overflow-wrap: anywhere;
+  display: block;
+  max-width: 70vw;         
+  flex: 1 1 0;             
+  min-width: 0;            
+}
 .direction-icon {
   width: 40px;
   height: 40px;
@@ -610,6 +619,11 @@ body {
 
 .filename {
   font-size: 0.95rem;
+  word-break: break-all;    
+  white-space: normal;      
+  overflow-wrap: anywhere;  
+  display: block;           
+  max-width: 100%;          
 }
 
 .subtext {
