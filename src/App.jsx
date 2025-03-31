@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import "./App.css";
 const SIGNALING_BASE_URL = "https://pearrtc.publicacc039.workers.dev";
-const NICKNAMES = ["Nova", "Starlight", "Orbit", "Zen", "Comet", "Luna", "Ember", "Void", "Pulse", "Echo"];
+const NICKNAMES = ["Nova", "Starlight", "Orbit", "Zen", "Comet", "Luna", "Ember", "Void", "Pulse", "Echo", "Photon", "Quasar", "Nebula", "Blaze", "Frost", "Vortex", "Pixel", "Nimbus", "Spark", "Glitch"];
 const Icons = {
   Upload: () => React.createElement("svg", {
     width: "20",
@@ -925,7 +925,7 @@ function App() {
     className: "welcome-stage fade-in"
   }, React.createElement("h1", {
     className: "hero-title"
-  }, "Secure Peer-to-Peer", React.createElement("br", null), React.createElement("span", {
+  }, "Secure p2p", React.createElement("br", null), React.createElement("span", {
     className: "gradient-text"
   }, "File Transfer.")), React.createElement("p", {
     className: "hero-subtitle"
@@ -941,7 +941,9 @@ function App() {
     onClick: () => setShowReceiveInput(true)
   }, React.createElement("div", {
     className: "icon-circle"
-  }, React.createElement(Icons.Receive, null)), React.createElement("h3", null, "Receive Files"), React.createElement("p", null, "Enter a connection code to link devices.")))), isConnecting && React.createElement("div", {
+  }, React.createElement(Icons.Receive, null)), React.createElement("h3", null, "Receive Files"), React.createElement("p", null, "Enter a connection code to link devices."))), React.createElement("h6", {
+    className: "footer"
+  }, "Signaling with spdc runtime v1.01 ", React.createElement("br", null), " codebyritul@gmail.com ", React.createElement("br", null), "Oasis-share v2.1(beta)")), isConnecting && React.createElement("div", {
     className: "connecting-stage fade-in"
   }, React.createElement("div", {
     className: "radar-spinner"

@@ -121,7 +121,9 @@ body {
   font-size: 1.1rem;
   letter-spacing: -0.5px;
 }
-
+.footer{
+  color: rgb(75, 75, 75);
+}
 .user-pill {
   padding: 8px 16px;
   border-radius: 100px;
@@ -766,10 +768,12 @@ body {
   }
 
   .app-header {
-    margin: 10px;
+    margin: 0px 10px;
     padding: 10px 16px;
   }
-
+.brand h1{
+  font-size: 25px;
+}
   .main-stage {
     padding: 0 16px 20px;
   }

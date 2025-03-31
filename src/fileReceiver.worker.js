@@ -16,10 +16,10 @@ self.onmessage = async (e) => {
   }
 
   if (type === "chunk") {
-    chunks.push(payload); 
+    chunks.push(payload); // Uint8Array
     receivedBytes += payload.byteLength;
 
-
+    // Send progress back to main thread
     self.postMessage({
       type: "progress",
       receivedBytes,
