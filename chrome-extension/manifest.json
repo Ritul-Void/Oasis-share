@@ -1,0 +1,47 @@
+{
+  "manifest_version": 3,
+  "name": "Oasis Share",
+  "version": "1.0.0",
+  "description": "Secure peer-to-peer file sharing directly from your browser. Share text, images, and files instantly via WebRTC.",
+  "permissions": [
+    "contextMenus",
+    "activeTab",
+    "storage",
+    "notifications"
+  ],
+  "host_permissions": [
+    "https://pearrtc.publicacc039.workers.dev/*",
+    "<all_urls>"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["simple-peer.min.js"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}

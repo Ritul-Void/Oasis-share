@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Oasis Share</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="app-container" id="app">
+
+    <!-- Header -->
+    <header class="app-header glass">
+      <div class="brand">
+        <div class="brand-logo">
+          <div class="red-dot"></div>
+        </div>
+        <span class="brand-name">Oasis Share</span>
+      </div>
+      <div class="user-pill glass-interactive">
+        <span class="status-indicator" id="statusDot"></span>
+        <span class="username" id="myUsername"></span>
+      </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main-stage">
+
+      <!-- Welcome / Home Screen -->
+      <div class="view" id="viewHome">
+        <div class="welcome-stage fade-in">
+          <h1 class="hero-title">Quick<br><span class="gradient-text">Share.</span></h1>
+          <p class="hero-subtitle">Share files, text, and images directly from your browser.</p>
+
+          <div class="action-cards">
+            <div class="card glass-card hover-lift" id="btnSend">
+              <div class="icon-circle">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+              </div>
+              <h3>Send</h3>
+              <p>Generate a code and share files instantly.</p>
+            </div>
+
+            <div class="card glass-card hover-lift" id="btnReceive">
+              <div class="icon-circle">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg>
+              </div>
+              <h3>Receive</h3>
+              <p>Enter a code to connect and receive.</p>
+            </div>
+          </div>
+
+          <div class="footer">Oasis Share Extension v1.0</div>
+        </div>
+      </div>
+
+      <!-- Quick Share Screen (from context menu) -->
+      <div class="view hidden" id="viewQuickShare">
+        <div class="quick-share-stage fade-in">
+          <div class="qs-header">
+            <button class="back-btn" id="qsBackBtn">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+            </button>
+            <h2>Quick Share</h2>
+          </div>
+
+          <!-- Preview -->
+          <div class="qs-preview glass" id="qsPreview">
+            <div class="qs-preview-icon" id="qsPreviewIcon">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+            </div>
+            <div class="qs-preview-info">
+              <span class="qs-preview-name" id="qsPreviewName">shared-text.txt</span>
+              <span class="qs-preview-meta" id="qsPreviewMeta">Text content</span>
+            </div>
+          </div>
+
+          <!-- Image preview (hidden by default) -->
+          <div class="qs-image-preview hidden" id="qsImagePreview">
+            <img id="qsImageThumb" src="" alt="Preview">
+          </div>
+
+          <!-- Keep Connection Toggle -->
+          <div class="qs-toggle-row">
+            <div class="qs-toggle-info">
+              <span class="qs-toggle-label">Keep Connection</span>
+              <span class="qs-toggle-desc">Stay connected for multiple shares</span>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" id="qsKeepConnection">
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+
+          <button class="primary-btn full-width" id="qsSendBtn">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+            Generate Code &amp; Share
+          </button>
+        </div>
+      </div>
+
+      <!-- Connecting Screen -->
+      <div class="view hidden" id="viewConnecting">
+        <div class="connecting-stage fade-in">
+          <div class="radar-spinner">
+            <div class="ripple"></div>
+            <div class="ripple delay-1"></div>
+            <div class="center-dot"></div>
+          </div>
+          <h2>Establishing Secure Link...</h2>
+
+          <div class="code-display glass hidden" id="codeDisplay">
+            <span class="code-label">CONNECTION CODE</span>
+            <div class="code-value" id="codeValue">
+              <span id="peerCodeText"></span>
+              <button class="copy-btn" id="copyCodeBtn">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+              </button>
+            </div>
+            <p class="hint">Share this code with the receiver</p>
+          </div>
+
+          <p class="hint" id="connectingHint">Locating peer...</p>
+          <button class="cancel-btn-text" id="cancelConnectBtn">Cancel</button>
+        </div>
+      </div>
+
+      <!-- Receive Code Input Modal -->
+      <div class="view hidden" id="viewReceiveInput">
+        <div class="receive-stage fade-in">
+          <div class="qs-header">
+            <button class="back-btn" id="receiveBackBtn">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+            </button>
+            <h2>Connect to Device</h2>
+          </div>
+
+          <div class="receive-form">
+            <input type="number" id="receiveCodeInput" class="qs-code-input" placeholder="Enter 6-digit code" autofocus>
+            
+            <!-- Keep Connection Toggle -->
+            <div class="qs-toggle-row">
+              <div class="qs-toggle-info">
+                <span class="qs-toggle-label">Keep Connection</span>
+                <span class="qs-toggle-desc">Stay connected for multiple shares</span>
+              </div>
+              <label class="toggle-switch">
+                <input type="checkbox" id="receiveKeepConnection">
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+
+            <button class="primary-btn full-width" id="connectBtn">Connect</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Connected Dashboard -->
+      <div class="view hidden" id="viewDashboard">
+        <div class="dashboard fade-in">
+
+          <div class="dashboard-header">
+            <div class="connection-info glass">
+              <span class="label">Connected to</span>
+              <span class="value" id="peerNameDisplay">Anonymous Peer</span>
+            </div>
+            <button class="disconnect-btn" id="disconnectBtn" title="Disconnect">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+          </div>
+
+          <!-- File Upload -->
+          <label class="upload-zone glass-interactive" id="uploadZone">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            <span class="upload-text">Drop files or click to share</span>
+            <input type="file" multiple id="fileInput" hidden>
+          </label>
+
+          <!-- Active Transfers -->
+          <div class="section hidden" id="transfersSection">
+            <h6 class="section-title">Active Transfers</h6>
+            <div class="transfers-list" id="transfersList"></div>
+          </div>
+
+          <!-- History -->
+          <div class="section grow">
+            <h6 class="section-title">History</h6>
+            <div class="history-list glass" id="historyList">
+              <div class="empty-state">No transfers yet.</div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <!-- Toast container -->
+  <div id="toastContainer"></div>
+
+  <script src="simple-peer.min.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>
