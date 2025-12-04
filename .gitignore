@@ -26,3 +26,20 @@ dist-ssr
 
 scripts
 strip-comments.babel.config.json
+# Ignore Docker build artifacts and sensitive files in spdc-runtime-js
+spdc-runtime-js/.mf/
+spdc-runtime-js/demo/
+spdc-runtime-js/lib-module/
+spdc-runtime-js/spdc-worker/
+spdc-runtime-js/SpdcClientEngine/
+spdc-runtime-js/node_modules/
+spdc-runtime-js/*.log
+spdc-runtime-js/*.sqlite*
+spdc-runtime-js/*.shm
+spdc-runtime-js/*.wal
+
+# Allow Dockerfile and .dockerignore
+!spdc-runtime-js/Dockerfile
+!spdc-runtime-js/.dockerignore
+!spdc-runtime-js/package.json
+!spdc-runtime-js/run.js
