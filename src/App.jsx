@@ -2,6 +2,29 @@ import React, { useState, useEffect, useRef } from "react";
 import "./App.css";
 const SIGNALING_BASE_URL = "https://pearrtc.publicacc039.workers.dev";
 const NICKNAMES = ["Nova", "Starlight", "Orbit", "Zen", "Comet", "Luna", "Ember", "Void", "Pulse", "Echo", "Photon", "Quasar", "Nebula", "Blaze", "Frost", "Vortex", "Pixel", "Nimbus", "Spark", "Glitch"];
+const DEFAULT_SETTINGS = {
+  chunkSizeOverride: null,
+  bufferThreshold: 256,
+  connectionTimeout: 20,
+  enableLanBoost: true
+};
+const loadSettings = () => {
+  try {
+    const raw = localStorage.getItem("oasis-settings");
+    if (raw) return {
+      ...DEFAULT_SETTINGS,
+      ...JSON.parse(raw)
+    };
+  } catch (_) {}
+  return {
+    ...DEFAULT_SETTINGS
+  };
+};
+const saveSettings = s => {
+  try {
+    localStorage.setItem("oasis-settings", JSON.stringify(s));
+  } catch (_) {}
+};
 const Icons = {
   Upload: () => React.createElement("svg", {
     width: "20",
@@ -40,37 +63,6 @@ const Icons = {
     y1: "15",
     x2: "12",
     y2: "3"
-  })),
-  Send: () => React.createElement("svg", {
-    width: "24",
-    height: "24",
-    viewBox: "0 0 24 24",
-    fill: "none",
-    stroke: "currentColor",
-    strokeWidth: "2",
-    strokeLinecap: "round",
-    strokeLinejoin: "round"
-  }, React.createElement("line", {
-    x1: "22",
-    y1: "2",
-    x2: "11",
-    y2: "13"
-  }), React.createElement("polygon", {
-    points: "22 2 15 22 11 13 2 9 22 2"
-  })),
-  Receive: () => React.createElement("svg", {
-    width: "24",
-    height: "24",
-    viewBox: "0 0 24 24",
-    fill: "none",
-    stroke: "currentColor",
-    strokeWidth: "2",
-    strokeLinecap: "round",
-    strokeLinejoin: "round"
-  }, React.createElement("polyline", {
-    points: "9 17 4 12 9 7"
-  }), React.createElement("path", {
-    d: "M20 18v-2a4 4 0 0 0-4-4H4"
   })),
   X: () => React.createElement("svg", {
     width: "16",
@@ -149,9 +141,133 @@ const Icons = {
   }), React.createElement("path", {
     d: "M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"
   })),
-  Gear: () => React.createElement("svg", {
+  Link: () => React.createElement("svg", {
+    width: "18",
+    height: "18",
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: "2",
+    strokeLinecap: "round",
+    strokeLinejoin: "round"
+  }, React.createElement("path", {
+    d: "M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"
+  }), React.createElement("path", {
+    d: "M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"
+  })),
+  Wifi: () => React.createElement("svg", {
+    width: "16",
+    height: "16",
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: "2",
+    strokeLinecap: "round",
+    strokeLinejoin: "round"
+  }, React.createElement("path", {
+    d: "M5 12.55a11 11 0 0 1 14.08 0"
+  }), React.createElement("path", {
+    d: "M1.42 9a16 16 0 0 1 21.16 0"
+  }), React.createElement("path", {
+    d: "M8.53 16.11a6 6 0 0 1 6.95 0"
+  }), React.createElement("line", {
+    x1: "12",
+    y1: "20",
+    x2: "12.01",
+    y2: "20"
+  })),
+  Disconnect: () => React.createElement("svg", {
+    width: "16",
+    height: "16",
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: "2",
+    strokeLinecap: "round",
+    strokeLinejoin: "round"
+  }, React.createElement("line", {
+    x1: "1",
+    y1: "1",
+    x2: "23",
+    y2: "23"
+  }), React.createElement("path", {
+    d: "M16.72 11.06A10.94 10.94 0 0 1 19 12.55"
+  }), React.createElement("path", {
+    d: "M5 12.55a10.94 10.94 0 0 1 5.17-2.39"
+  }), React.createElement("path", {
+    d: "M10.71 5.05A16 16 0 0 1 22.56 9"
+  }), React.createElement("path", {
+    d: "M1.42 9a15.91 15.91 0 0 1 4.7-2.88"
+  }), React.createElement("path", {
+    d: "M8.53 16.11a6 6 0 0 1 6.95 0"
+  }), React.createElement("line", {
+    x1: "12",
+    y1: "20",
+    x2: "12.01",
+    y2: "20"
+  })),
+  Text: () => React.createElement("svg", {
     width: "20",
     height: "20",
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: "2",
+    strokeLinecap: "round",
+    strokeLinejoin: "round"
+  }, React.createElement("path", {
+    d: "M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"
+  })),
+  Folder: () => React.createElement("svg", {
+    width: "20",
+    height: "20",
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: "2",
+    strokeLinecap: "round",
+    strokeLinejoin: "round"
+  }, React.createElement("path", {
+    d: "M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"
+  })),
+  Clipboard: () => React.createElement("svg", {
+    width: "20",
+    height: "20",
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: "2",
+    strokeLinecap: "round",
+    strokeLinejoin: "round"
+  }, React.createElement("path", {
+    d: "M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"
+  }), React.createElement("rect", {
+    x: "8",
+    y: "2",
+    width: "8",
+    height: "4",
+    rx: "1",
+    ry: "1"
+  })),
+  History: () => React.createElement("svg", {
+    width: "18",
+    height: "18",
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: "2",
+    strokeLinecap: "round",
+    strokeLinejoin: "round"
+  }, React.createElement("circle", {
+    cx: "12",
+    cy: "12",
+    r: "10"
+  }), React.createElement("polyline", {
+    points: "12 6 12 12 16 14"
+  })),
+  Settings: () => React.createElement("svg", {
+    width: "18",
+    height: "18",
     viewBox: "0 0 24 24",
     fill: "none",
     stroke: "currentColor",
@@ -163,7 +279,44 @@ const Icons = {
     cy: "12",
     r: "3"
   }), React.createElement("path", {
-    d: "M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"
+    d: "M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"
+  })),
+  Plus: () => React.createElement("svg", {
+    width: "20",
+    height: "20",
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: "2",
+    strokeLinecap: "round",
+    strokeLinejoin: "round"
+  }, React.createElement("line", {
+    x1: "12",
+    y1: "5",
+    x2: "12",
+    y2: "19"
+  }), React.createElement("line", {
+    x1: "5",
+    y1: "12",
+    x2: "19",
+    y2: "12"
+  })),
+  Back: () => React.createElement("svg", {
+    width: "20",
+    height: "20",
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: "2",
+    strokeLinecap: "round",
+    strokeLinejoin: "round"
+  }, React.createElement("line", {
+    x1: "19",
+    y1: "12",
+    x2: "5",
+    y2: "12"
+  }), React.createElement("polyline", {
+    points: "12 19 5 12 12 5"
   }))
 };
 function randomUsername() {
@@ -172,26 +325,38 @@ function randomUsername() {
   return `${name}#${num}`;
 }
 const formatBytes = bytes => {
-  if (bytes === 0) return '0 B';
+  if (bytes === 0) return "0 B";
   const k = 1024;
-  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const sizes = ["B", "KB", "MB", "GB"];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
 };
+const generatePeerId = () => String(Math.floor(100000 + Math.random() * 900000));
 function App() {
   const [connected, setConnected] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
-  const [peerId, setPeerId] = useState("");
-  const [isInitiator, setIsInitiator] = useState(false);
-  const [myUsername] = useState(randomUsername());
+  const [myCode] = useState(generatePeerId);
+  const [peerCode, setPeerCode] = useState("");
+  const [myUsername] = useState(randomUsername);
   const [peerUsername, setPeerUsername] = useState("");
+  const [isLocalNetwork, setIsLocalNetwork] = useState(false);
+  const [codeCopied, setCodeCopied] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState([]);
   const [sentFiles, setSentFiles] = useState([]);
   const [receivedFiles, setReceivedFiles] = useState([]);
   const [sendingProgress, setSendingProgress] = useState({});
   const [receivingProgress, setReceivingProgress] = useState({});
-  const [showReceiveInput, setShowReceiveInput] = useState(false);
-  const [receiveCode, setReceiveCode] = useState("");
+  const [userInitiatedConnection, setUserInitiatedConnection] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const [showTextModal, setShowTextModal] = useState(false);
+  const [textInput, setTextInput] = useState("");
+  const [showPastePreview, setShowPastePreview] = useState(false);
+  const [pasteContent, setPasteContent] = useState(null);
+  const [messageHistory, setMessageHistory] = useState([]);
+  const [showHistory, setShowHistory] = useState(false);
+  const [historyTab, setHistoryTab] = useState("sent");
+  const [showSettings, setShowSettings] = useState(false);
+  const [settings, setSettings] = useState(loadSettings);
   const peerRef = useRef(null);
   const pollingRef = useRef(null);
   const fileQueueRef = useRef([]);
@@ -201,10 +366,15 @@ function App() {
   const incomingFileRef = useRef(null);
   const activeSendFilesRef = useRef(new Map());
   const receiverWorkerRef = useRef(null);
-  const BUFFERED_THRESHOLD = 256 * 1024;
+  const isInitiatorRef = useRef(false);
+  const folderInputRef = useRef(null);
+  const pendingTextRef = useRef(null);
+  const dragCounterRef = useRef(0);
+  const BUFFERED_THRESHOLD = (settings.bufferThreshold || 256) * 1024;
   const MAX_QUEUE_BYTES = 4 * 1024 * 1024;
   const BACKOFF_BASE_MS = 150;
   const BACKOFF_MAX_ATTEMPTS = 5;
+  const CONNECTION_TIMEOUT = (settings.connectionTimeout || 20) * 1000;
   const apiPost = async (path, body) => {
     const res = await fetch(SIGNALING_BASE_URL + path, {
       method: "POST",
@@ -223,7 +393,6 @@ function App() {
       data: await res.json().catch(() => ({}))
     };
   };
-  const generatePeerId = () => String(Math.floor(100000 + Math.random() * 900000));
   const toast = msg => {
     const t = document.createElement("div");
     t.className = "toast-custom";
@@ -239,23 +408,65 @@ function App() {
     try {
       const p = new SimplePeer({
         initiator,
-        trickle: false
+        trickle: false,
+        channelName: "oasis-file-channel",
+        config: {
+          iceServers: [{
+            urls: "stun:stun.l.google.com:19302"
+          }, {
+            urls: "stun:stun1.l.google.com:19302"
+          }, {
+            urls: "stun:stun2.l.google.com:19302"
+          }, {
+            urls: "stun:stun3.l.google.com:19302"
+          }, {
+            urls: "stun:stun4.l.google.com:19302"
+          }, {
+            urls: "stun:stun.l.google.com:19302"
+          }, {
+            urls: "stun:stun.services.mozilla.com:3478"
+          }],
+          iceTransportPolicy: "all",
+          iceCandidatePoolSize: 10
+        },
+        offerOptions: {
+          offerToReceiveAudio: false,
+          offerToReceiveVideo: false
+        }
       });
+      let signalEventHandled = false;
       p.on("signal", async data => {
-        if (initiator) {
-          await apiPost("/api/peer-offer", {
-            peerId: id,
-            offer: data
-          });
-          pollForAnswer(id, p);
-        } else {
-          await apiPost("/api/peer-answer", {
-            peerId: id,
-            answer: data
-          });
+        if (initiator && !signalEventHandled) {
+          signalEventHandled = true;
+          try {
+            await apiPost("/api/peer-offer", {
+              peerId: id,
+              offer: data
+            });
+            pollForAnswer(id, p);
+          } catch (err) {
+            console.error("Failed to post offer:", err);
+            if (userInitiatedConnection) {
+              toast("Failed to post offer to server");
+            }
+          }
+        } else if (!initiator && !signalEventHandled) {
+          signalEventHandled = true;
+          try {
+            await apiPost("/api/peer-answer", {
+              peerId: id,
+              answer: data
+            });
+          } catch (err) {
+            console.error("Failed to post answer:", err);
+            if (userInitiatedConnection) {
+              toast("Failed to post answer to server");
+            }
+          }
         }
       });
       p.on("connect", () => {
+        clearInterval(pollingRef.current);
         setConnected(true);
         setIsConnecting(false);
         toast("Secure connection established");
@@ -274,26 +485,77 @@ function App() {
           type: "username",
           value: myUsername
         }));
+        const activeId = isInitiatorRef.current ? myCode : peerCode;
+        apiPost(`/api/session/${activeId}/meta`, {}).catch(_ => {});
+        setTimeout(() => {
+          apiGet(`/api/session/${activeId}/meta`).then(({
+            data
+          }) => {
+            if (data?.isLocalNetwork) {
+              setIsLocalNetwork(true);
+            }
+          }).catch(_ => {});
+        }, 1000);
         processFileQueue();
       });
-      p.on("data", data => {
-        console.log("[oasis-share] p.on('data') fired with", typeof data, data instanceof ArrayBuffer ? "ArrayBuffer" : data instanceof Uint8Array ? "Uint8Array" : "string");
-        handleIncomingData(data);
-      });
+      p.on("data", data => handleIncomingData(data));
       p.on("close", () => {
+        const wasConnected = connected;
         setConnected(false);
         setIsConnecting(false);
-        toast("Peer disconnected.");
+        setIsLocalNetwork(false);
+        if (wasConnected && userInitiatedConnection) {
+          toast("Peer disconnected");
+        }
         clearInterval(pollingRef.current);
         dataChannelRef.current = null;
         bufferLowResolversRef.current.splice(0).forEach(r => r());
       });
       p.on("error", err => {
-        console.error("Peer error:", err);
-        setConnected(false);
-        setIsConnecting(false);
-        toast("Connection error occurred.");
+        if (userInitiatedConnection) {
+          console.error("[oasis] peer error:", err.message || err);
+          setConnected(false);
+          setIsConnecting(false);
+          toast("Connection error: " + (err.message || String(err)));
+        }
       });
+      const connectionTimeout = setTimeout(() => {
+        if (!connected && p._pc && userInitiatedConnection) {
+          const finalIceState = p._pc.iceConnectionState;
+          if (finalIceState !== "connected" && finalIceState !== "completed") {
+            try {
+              p.destroy();
+            } catch (_) {}
+            setConnected(false);
+            setIsConnecting(false);
+            toast("Connection timeout — make sure both devices are on the same network");
+          }
+        }
+      }, CONNECTION_TIMEOUT);
+      const originalOnConnect = p.listeners("connect")?.[0];
+      if (originalOnConnect) {
+        p.removeListener("connect", originalOnConnect);
+        p.on("connect", () => {
+          clearTimeout(connectionTimeout);
+          originalOnConnect();
+        });
+      }
+      const originalOnError = p.listeners("error")?.[0];
+      if (originalOnError) {
+        p.removeListener("error", originalOnError);
+        p.on("error", err => {
+          clearTimeout(connectionTimeout);
+          originalOnError(err);
+        });
+      }
+      const originalOnClose = p.listeners("close")?.[0];
+      if (originalOnClose) {
+        p.removeListener("close", originalOnClose);
+        p.on("close", () => {
+          clearTimeout(connectionTimeout);
+          originalOnClose();
+        });
+      }
       peerRef.current = p;
     } catch (e) {
       setIsConnecting(false);
@@ -301,21 +563,102 @@ function App() {
     }
   };
   const pollForAnswer = (id, p) => {
+    let pollCount = 0;
+    let answerSignaled = false;
     pollingRef.current = setInterval(async () => {
+      if (answerSignaled) return;
+      pollCount += 1;
       const {
         status,
         data
       } = await apiGet(`/api/peer-answer/${id}`);
       if (status === 200 && data.answer) {
+        answerSignaled = true;
         clearInterval(pollingRef.current);
         p.signal(data.answer);
+      } else if (pollCount > 120) {
+        answerSignaled = true;
+        clearInterval(pollingRef.current);
+        try {
+          p.destroy();
+        } catch (_) {}
+        setIsConnecting(false);
+        if (userInitiatedConnection) {
+          toast("Connection timeout — peer did not respond");
+        }
       }
-    }, 2000);
+    }, 1000);
+  };
+  const initAsInitiator = () => {
+    if (peerRef.current) {
+      try {
+        peerRef.current.destroy();
+      } catch (_) {}
+    }
+    clearInterval(pollingRef.current);
+    isInitiatorRef.current = true;
+    initPeer(true, myCode);
+  };
+  const handleConnect = async () => {
+    if (!peerCode || peerCode.length !== 6) {
+      toast("Enter a valid 6-digit code");
+      return;
+    }
+    setUserInitiatedConnection(true);
+    setIsConnecting(true);
+    try {
+      clearInterval(pollingRef.current);
+      if (peerRef.current) {
+        try {
+          peerRef.current.destroy();
+        } catch (_) {}
+      }
+      let offerData = null;
+      let offerFound = false;
+      for (let attempt = 0; attempt < 5; attempt++) {
+        const {
+          status,
+          data
+        } = await apiGet(`/api/peer-offer/${peerCode}`);
+        if (status === 200 && data.offer) {
+          offerData = data;
+          offerFound = true;
+          break;
+        }
+        if (attempt < 4) {
+          await new Promise(res => setTimeout(res, (attempt + 1) * 200));
+        }
+      }
+      if (offerFound && offerData) {
+        isInitiatorRef.current = false;
+        initPeer(false, peerCode);
+        setTimeout(() => {
+          if (peerRef.current) {
+            peerRef.current.signal(offerData.offer);
+          }
+        }, 100);
+      } else {
+        toast("Code not found — make sure the other device is ready");
+        initAsInitiator();
+        setIsConnecting(false);
+      }
+    } catch (e) {
+      console.error("handleConnect error:", e);
+      toast("Connection error");
+      initAsInitiator();
+      setIsConnecting(false);
+    }
   };
   const detectMobile = () => /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent || "");
   const getAdaptiveChunkSize = () => {
+    if (settings.chunkSizeOverride) return settings.chunkSizeOverride * 1024;
     const dm = navigator.deviceMemory || 4;
-    if (detectMobile()) {
+    const isMobile = detectMobile();
+    const lan = isLocalNetwork && settings.enableLanBoost;
+    if (lan) {
+      return isMobile ? 128 * 1024 : 512 * 1024;
+    }
+    if (isMobile) {
       if (dm <= 2) return 16 * 1024;
       if (dm <= 4) return 24 * 1024;
       return 32 * 1024;
@@ -337,26 +680,14 @@ function App() {
         return;
       } catch (err) {
         attempt += 1;
-        if (attempt > BACKOFF_MAX_ATTEMPTS) {
-          throw err;
-        }
+        if (attempt > BACKOFF_MAX_ATTEMPTS) throw err;
         const delay = Math.min(BACKOFF_BASE_MS * 2 ** (attempt - 1), 2000);
         await new Promise(res => setTimeout(res, delay));
       }
     }
   };
   const logDeviceSnapshot = dc => {
-    try {
-      console.log("[oasis-share] device snapshot", {
-        deviceMemory: navigator.deviceMemory,
-        performanceMemory: performance?.memory,
-        bufferedAmount: dc?.bufferedAmount,
-        isMobile: detectMobile(),
-        chunkSize: getAdaptiveChunkSize()
-      });
-    } catch (e) {
-      console.debug("snapshot log skipped", e);
-    }
+    try {} catch (_) {}
   };
   const createWritableSink = async meta => {
     if (window.showSaveFilePicker && window.WritableStream) {
@@ -365,12 +696,10 @@ function App() {
       });
       const writable = await handle.createWritable();
       let position = meta.startOffset || 0;
-      if (position > 0) {
-        await writable.write({
-          type: "seek",
-          position
-        });
-      }
+      if (position > 0) await writable.write({
+        type: "seek",
+        position
+      });
       return {
         mode: "file-system",
         write: async chunk => {
@@ -429,9 +758,7 @@ function App() {
     if (state && (!fileId || state.fileId === fileId)) {
       try {
         await state.sink?.abort?.();
-      } catch (e) {
-        console.warn("Failed to abort sink", e);
-      }
+      } catch (_) {}
     }
     incomingFileRef.current = null;
   };
@@ -489,41 +816,35 @@ function App() {
         toast("Incoming transfer halted; attempting resume");
       }).finally(() => {
         const active = incomingFileRef.current;
-        if (active) {
-          active.flushPromise = null;
-        }
+        if (active) active.flushPromise = null;
       });
     }
-    if (state.queueBytes > MAX_QUEUE_BYTES) {
-      console.warn("Incoming queue above target window", state.queueBytes);
-    }
+    if (state.queueBytes > MAX_QUEUE_BYTES) {}
   };
   const handleIncomingChunk = chunk => {
-    console.log("[oasis-share] handleIncomingChunk called with", chunk.byteLength || chunk.length, "bytes");
-    if (!(chunk instanceof Uint8Array)) {
-      chunk = new Uint8Array(chunk);
-    }
+    if (!(chunk instanceof Uint8Array)) chunk = new Uint8Array(chunk);
     receiverWorkerRef.current.postMessage({
       type: "chunk",
       payload: chunk
     }, [chunk.buffer]);
-  };
-  const debugLogIncomingData = data => {
-    console.log("[oasis-share] Received data event", {
-      type: typeof data,
-      isArrayBuffer: data instanceof ArrayBuffer,
-      isUint8Array: data instanceof Uint8Array,
-      length: data?.length || data?.byteLength || 0,
-      sample: data instanceof Uint8Array ? `[${data.slice(0, 8).join(",")}...]` : String(data).slice(0, 100)
-    });
   };
   const handleControlMessage = async msg => {
     if (msg.type === "username") {
       setPeerUsername(msg.value);
       return;
     }
+    if (msg.type === "text-message") {
+      setMessageHistory(prev => [...prev, {
+        id: msg.messageId,
+        content: msg.content,
+        direction: "received",
+        time: new Date().toLocaleTimeString(),
+        timestamp: Date.now()
+      }]);
+      toast("Text message received");
+      return;
+    }
     if (msg.type === "file-meta") {
-      console.log("[oasis-share] file-meta received", msg);
       incomingFileRef.current = {
         ...msg,
         startTime: Date.now()
@@ -547,7 +868,6 @@ function App() {
       return;
     }
     if (msg.type === "file-end") {
-      console.log("[oasis-share] file-end received for", msg.fileId);
       receiverWorkerRef.current.postMessage({
         type: "end"
       });
@@ -585,7 +905,6 @@ function App() {
     const startTime = Date.now();
     const dc = dataChannelRef.current || peerRef.current?._channel;
     let keepForResume = false;
-    let lastMetricLog = Date.now();
     if (!dc) {
       toast("Data channel not ready");
       return;
@@ -636,11 +955,11 @@ function App() {
             });
             keepForResume = true;
             setSendingProgress(prev => {
-              const newState = {
+              const n = {
                 ...prev
               };
-              delete newState[fileId];
-              return newState;
+              delete n[fileId];
+              return n;
             });
             toast(`Transfer of ${file.name} cancelled`);
             return;
@@ -652,16 +971,6 @@ function App() {
           const progress = offset / file.size * 100;
           const elapsedTime = (Date.now() - startTime) / 1000;
           const speed = offset / elapsedTime / 1024;
-          if (Date.now() - lastMetricLog > 1000) {
-            console.log("[oasis-share] send metrics", {
-              deviceMemory: navigator.deviceMemory,
-              performanceMemory: performance?.memory,
-              bufferedAmount: dc?.bufferedAmount,
-              offset,
-              chunkSize
-            });
-            lastMetricLog = Date.now();
-          }
           setSendingProgress(prev => ({
             ...prev,
             [fileId]: {
@@ -694,32 +1003,271 @@ function App() {
       try {
         peerRef.current?.destroy?.();
         setConnected(false);
-      } catch (e) {
-        console.error("Failed to close peer after send error", e);
-      }
+      } catch (_) {}
     } finally {
       setSendingProgress(prev => {
-        const newState = {
+        const n = {
           ...prev
         };
-        delete newState[fileId];
-        return newState;
+        delete n[fileId];
+        return n;
       });
       delete cancellationTokensRef.current[fileId];
-      if (!keepForResume) {
-        activeSendFilesRef.current.delete(fileId);
-      }
+      if (!keepForResume) activeSendFilesRef.current.delete(fileId);
     }
   };
   const processFileQueue = async () => {
-    if (!peerRef.current || !connected) {
-      return;
-    }
+    if (!peerRef.current || !connected) return;
     while (fileQueueRef.current.length > 0) {
       const file = fileQueueRef.current.shift();
       await sendFileInChunks(file);
     }
     setSelectedFiles([]);
+  };
+  const handleIncomingData = data => {
+    if (typeof data === "string") {
+      handleControlMessage(JSON.parse(data)).catch(err => console.error("control message error", err));
+      return;
+    }
+    if (data instanceof Uint8Array || data instanceof ArrayBuffer) {
+      const bytes = data instanceof Uint8Array ? data : new Uint8Array(data);
+      if (bytes[0] === 123 || bytes[0] === 91 || bytes[0] === 34) {
+        try {
+          const text = new TextDecoder().decode(bytes);
+          if (text.startsWith("{") || text.startsWith("[") || text.startsWith('"')) {
+            handleControlMessage(JSON.parse(text)).catch(err => console.error("control message error", err));
+            return;
+          }
+        } catch (_) {}
+      }
+      handleIncomingChunk(data instanceof ArrayBuffer ? new Uint8Array(data) : data);
+      return;
+    }
+    if (data?.buffer) {
+      handleIncomingChunk(new Uint8Array(data.buffer));
+      return;
+    }
+  };
+  const handleDisconnect = () => {
+    Object.keys(cancellationTokensRef.current).forEach(id => {
+      cancellationTokensRef.current[id] = true;
+    });
+    fileQueueRef.current = [];
+    setSelectedFiles([]);
+    setSendingProgress({});
+    setReceivingProgress({});
+    setPeerUsername("");
+    setPeerCode("");
+    setIsLocalNetwork(false);
+    setConnected(false);
+    setIsConnecting(false);
+    dataChannelRef.current = null;
+    bufferLowResolversRef.current.splice(0).forEach(r => r());
+    incomingFileRef.current = null;
+    clearInterval(pollingRef.current);
+    if (peerRef.current) {
+      try {
+        peerRef.current.destroy();
+      } catch (_) {}
+    }
+    receiverWorkerRef.current?.postMessage({
+      type: "abort"
+    });
+    toast("Disconnected");
+    setTimeout(() => initAsInitiator(), 200);
+  };
+  const handleCancelReceive = fileId => {
+    sendControlMessage({
+      type: "cancel-file",
+      fileId
+    });
+    receiverWorkerRef.current?.postMessage({
+      type: "abort"
+    });
+    incomingFileRef.current = null;
+    setReceivingProgress(prev => {
+      const n = {
+        ...prev
+      };
+      delete n[fileId];
+      return n;
+    });
+    toast("Cancelled incoming transfer");
+  };
+  const handleSendText = () => {
+    if (!textInput.trim()) return;
+    if (!connected) {
+      pendingTextRef.current = {
+        content: textInput.trim()
+      };
+      setTextInput("");
+      setShowTextModal(false);
+      toast("Text saved — will send when connected");
+      return;
+    }
+    const messageId = `text-${Date.now()}`;
+    sendControlMessage({
+      type: "text-message",
+      content: textInput.trim(),
+      messageId
+    });
+    setMessageHistory(prev => [...prev, {
+      id: messageId,
+      content: textInput.trim(),
+      direction: "sent",
+      time: new Date().toLocaleTimeString(),
+      timestamp: Date.now()
+    }]);
+    setTextInput("");
+    setShowTextModal(false);
+    toast("Text sent");
+  };
+  const handleDroppedFiles = files => {
+    if (!files || files.length === 0) return;
+    const newFiles = Array.from(files).map(f => ({
+      file: f,
+      name: f.webkitRelativePath || f.name,
+      size: f.size,
+      tempId: `${f.name}-${f.size}-${Date.now()}-${Math.random()}`
+    }));
+    setSelectedFiles(prev => [...prev, ...newFiles]);
+    fileQueueRef.current = [...fileQueueRef.current, ...newFiles.map(i => i.file)];
+    if (connected) processFileQueue();
+  };
+  const handleDragEnter = e => {
+    e.preventDefault();
+    dragCounterRef.current += 1;
+    if (dragCounterRef.current === 1) setIsDragging(true);
+  };
+  const handleDragLeave = e => {
+    e.preventDefault();
+    dragCounterRef.current -= 1;
+    if (dragCounterRef.current === 0) setIsDragging(false);
+  };
+  const handleDragOver = e => {
+    e.preventDefault();
+  };
+  const handleDrop = e => {
+    e.preventDefault();
+    dragCounterRef.current = 0;
+    setIsDragging(false);
+    handleDroppedFiles(e.dataTransfer.files);
+  };
+  const handleFolderChange = e => {
+    const files = Array.from(e.target.files);
+    if (files.length === 0) return;
+    const newFiles = files.map(f => ({
+      file: f,
+      name: f.webkitRelativePath || f.name,
+      size: f.size,
+      tempId: `${f.name}-${f.size}-${Date.now()}-${Math.random()}`
+    }));
+    setSelectedFiles(prev => [...prev, ...newFiles]);
+    fileQueueRef.current = [...fileQueueRef.current, ...files];
+    if (connected) processFileQueue();
+    e.target.value = "";
+  };
+  const handleSharePaste = async () => {
+    try {
+      if (navigator.clipboard.read) {
+        const items = await navigator.clipboard.read();
+        for (const item of items) {
+          const imageType = item.types.find(t => t.startsWith("image/"));
+          if (imageType) {
+            const blob = await item.getType(imageType);
+            const ext = imageType.split("/")[1] || "png";
+            const file = new File([blob], `clipboard-image.${ext}`, {
+              type: imageType
+            });
+            setPasteContent({
+              type: "image",
+              data: URL.createObjectURL(blob),
+              file
+            });
+            setShowPastePreview(true);
+            return;
+          }
+          if (item.types.includes("text/plain")) {
+            const blob = await item.getType("text/plain");
+            const text = await blob.text();
+            if (text.trim()) {
+              setPasteContent({
+                type: "text",
+                data: text.trim()
+              });
+              setShowPastePreview(true);
+              return;
+            }
+          }
+        }
+        toast("Nothing to paste");
+      } else {
+        const text = await navigator.clipboard.readText();
+        if (text.trim()) {
+          setPasteContent({
+            type: "text",
+            data: text.trim()
+          });
+          setShowPastePreview(true);
+        } else {
+          toast("Nothing to paste");
+        }
+      }
+    } catch (err) {
+      toast("Clipboard access denied");
+    }
+  };
+  const handleConfirmPaste = () => {
+    if (!pasteContent) return;
+    if (pasteContent.type === "text") {
+      if (!connected) {
+        pendingTextRef.current = {
+          content: pasteContent.data
+        };
+        setShowPastePreview(false);
+        setPasteContent(null);
+        toast("Text saved — will send when connected");
+        return;
+      }
+      const messageId = `paste-${Date.now()}`;
+      sendControlMessage({
+        type: "text-message",
+        content: pasteContent.data,
+        messageId
+      });
+      setMessageHistory(prev => [...prev, {
+        id: messageId,
+        content: pasteContent.data,
+        direction: "sent",
+        time: new Date().toLocaleTimeString(),
+        timestamp: Date.now()
+      }]);
+      toast("Pasted text sent");
+    } else if (pasteContent.type === "image" && pasteContent.file) {
+      const f = pasteContent.file;
+      const item = {
+        file: f,
+        name: f.name,
+        size: f.size,
+        tempId: `${f.name}-${f.size}-${Date.now()}`
+      };
+      setSelectedFiles(prev => [...prev, item]);
+      fileQueueRef.current = [...fileQueueRef.current, f];
+      if (connected) processFileQueue();
+      toast("Image added to queue");
+    }
+    setShowPastePreview(false);
+    setPasteContent(null);
+  };
+  const updateSettings = patch => {
+    setSettings(prev => {
+      const next = {
+        ...prev,
+        ...patch
+      };
+      saveSettings(next);
+      return next;
+    });
   };
   useEffect(() => {
     receiverWorkerRef.current = new Worker(new URL("./fileReceiver.worker.js", import.meta.url), {
@@ -748,91 +1296,47 @@ function App() {
         }));
       }
       if (type === "done") {
-        console.log("[oasis-share] File transfer complete, triggering download");
         triggerDownload(blob, name, fileId, receivedBytes);
       }
     };
+    initAsInitiator();
     return () => {
-      if (receiverWorkerRef.current) {
-        receiverWorkerRef.current.terminate();
-      }
+      clearInterval(pollingRef.current);
+      try {
+        peerRef.current?.destroy();
+      } catch (_) {}
+      receiverWorkerRef.current?.terminate();
     };
   }, []);
   useEffect(() => {
-    if (connected && fileQueueRef.current.length > 0) {
-      processFileQueue();
-    }
-  }, [connected, fileQueueRef.current.length]);
-  const handleIncomingData = data => {
-    debugLogIncomingData(data);
-    if (typeof data === "string") {
-      console.log("[oasis-share] handleIncomingData: processing string control message");
-      handleControlMessage(JSON.parse(data)).catch(err => console.error("control message error", err));
-      return;
-    }
-    if (data instanceof Uint8Array || data instanceof ArrayBuffer) {
-      const bytes = data instanceof Uint8Array ? data : new Uint8Array(data);
-      if (bytes[0] === 123 || bytes[0] === 91 || bytes[0] === 34) {
-        try {
-          const text = new TextDecoder().decode(bytes);
-          if (text.startsWith("{") || text.startsWith("[") || text.startsWith('"')) {
-            console.log("[oasis-share] handleIncomingData: detected JSON in Uint8Array, parsing as control message");
-            handleControlMessage(JSON.parse(text)).catch(err => console.error("control message error", err));
-            return;
-          }
-        } catch (e) {
-          console.debug("Failed to decode as JSON, treating as binary chunk", e);
-        }
-      }
-      if (data instanceof ArrayBuffer) {
-        console.log("[oasis-share] handleIncomingData: processing ArrayBuffer chunk", data.byteLength, "bytes");
-        handleIncomingChunk(new Uint8Array(data));
-        return;
-      }
-      if (data instanceof Uint8Array) {
-        console.log("[oasis-share] handleIncomingData: processing Uint8Array chunk", data.byteLength, "bytes");
-        handleIncomingChunk(data);
-        return;
-      }
-    }
-    if (data?.buffer) {
-      console.log("[oasis-share] handleIncomingData: processing typed array with .buffer", data.buffer.byteLength, "bytes");
-      handleIncomingChunk(new Uint8Array(data.buffer));
-      return;
-    }
-    console.warn("[oasis-share] handleIncomingData: unknown data type, ignoring", typeof data, data);
-  };
-  const handleSend = () => {
-    const id = generatePeerId();
-    setPeerId(id);
-    setIsInitiator(true);
-    setIsConnecting(true);
-    initPeer(true, id);
-  };
-  const handleReceive = async () => {
-    if (!receiveCode) return toast("Please enter a code");
-    setIsConnecting(true);
-    try {
+    if (!connected) return;
+    if (pendingTextRef.current) {
       const {
-        status,
-        data
-      } = await apiGet(`/api/peer-offer/${receiveCode}`);
-      if (status === 200 && data.offer) {
-        initPeer(false, receiveCode);
-        peerRef.current.signal(data.offer);
-        setShowReceiveInput(false);
-      } else {
-        toast("Invalid or expired connection code.");
-        setIsConnecting(false);
-      }
-    } catch (e) {
-      setIsConnecting(false);
-      toast("Connection error");
+        content
+      } = pendingTextRef.current;
+      const messageId = `text-${Date.now()}`;
+      sendControlMessage({
+        type: "text-message",
+        content,
+        messageId
+      });
+      setMessageHistory(prev => [...prev, {
+        id: messageId,
+        content,
+        direction: "sent",
+        time: new Date().toLocaleTimeString(),
+        timestamp: Date.now()
+      }]);
+      pendingTextRef.current = null;
+      toast("Queued text sent");
     }
-  };
+    if (fileQueueRef.current.length > 0) processFileQueue();
+  }, [connected]);
   const copyCode = () => {
-    navigator.clipboard.writeText(peerId);
-    toast("Code copied to clipboard");
+    navigator.clipboard.writeText(myCode);
+    setCodeCopied(true);
+    toast("Code copied");
+    setTimeout(() => setCodeCopied(false), 2000);
   };
   const handleFileChange = e => {
     const newFiles = Array.from(e.target.files).map(f => ({
@@ -843,15 +1347,12 @@ function App() {
     }));
     setSelectedFiles(prev => [...prev, ...newFiles]);
     fileQueueRef.current = [...fileQueueRef.current, ...newFiles.map(item => item.file)];
-    if (connected) {
-      processFileQueue();
-    }
+    if (connected) processFileQueue();
+    e.target.value = "";
   };
   const handleRemoveSelectedFile = tempIdToRemove => {
-    const fileObjectToRemove = selectedFiles.find(f => f.tempId === tempIdToRemove);
-    if (fileObjectToRemove) {
-      fileQueueRef.current = fileQueueRef.current.filter(f => f !== fileObjectToRemove.file);
-    }
+    const item = selectedFiles.find(f => f.tempId === tempIdToRemove);
+    if (item) fileQueueRef.current = fileQueueRef.current.filter(f => f !== item.file);
     setSelectedFiles(prev => prev.filter(f => f.tempId !== tempIdToRemove));
   };
   const handleCancelSend = fileId => {
@@ -870,8 +1371,7 @@ function App() {
       a.click();
       document.body.removeChild(a);
       setTimeout(() => URL.revokeObjectURL(url), 60_000);
-      const endTime = Date.now();
-      const duration = (endTime - (incomingFileRef.current?.startTime || Date.now())) / 1000;
+      const duration = (Date.now() - (incomingFileRef.current?.startTime || Date.now())) / 1000;
       const speed = (receivedBytes / duration / 1024).toFixed(2);
       setReceivedFiles(r => [...r, {
         name,
@@ -895,128 +1395,172 @@ function App() {
       toast(`Error saving ${name}`);
     }
   };
+  const allTransfers = [...Object.values(sendingProgress).map(f => ({
+    ...f,
+    direction: "up"
+  })), ...Object.values(receivingProgress).map(f => ({
+    ...f,
+    direction: "down"
+  }))];
   const unifiedHistory = [...sentFiles.map(f => ({
     ...f,
-    direction: 'sent'
+    direction: "sent"
   })), ...receivedFiles.map(f => ({
     ...f,
-    direction: 'received'
+    direction: "received"
   }))].sort((a, b) => 0);
+  const hasActiveTransfers = allTransfers.length > 0;
   return React.createElement("div", {
-    className: "app-container"
+    className: "app-layout",
+    onDragEnter: handleDragEnter,
+    onDragLeave: handleDragLeave,
+    onDragOver: handleDragOver,
+    onDrop: handleDrop
+  }, isDragging && React.createElement("div", {
+    className: "drag-overlay"
+  }, React.createElement("div", {
+    className: "drag-overlay-inner"
+  }, React.createElement(Icons.Upload, null), React.createElement("span", null, "Drop files to share"))), React.createElement("div", {
+    className: "app-container dark-mode"
   }, React.createElement("header", {
-    className: "app-header glass"
+    className: "app-header"
   }, React.createElement("div", {
     className: "brand"
-  }, React.createElement("h1", null, "Oasis-Share")), React.createElement("div", {
-    className: "user-status"
   }, React.createElement("div", {
-    className: "user-pill glass-interactive"
-  }, React.createElement("span", {
-    className: "status-indicator",
+    className: "brand-icon"
+  }, React.createElement("img", {
+    src: "/oasis-logo-share.png",
+    alt: "Oasis-Share Logo",
     style: {
-      background: connected ? '#00FF88' : '#FF3B30'
+      width: "22px",
+      height: "22px"
     }
-  }), React.createElement("span", {
-    className: "username"
-  }, myUsername)))), React.createElement("main", {
+  })), React.createElement("h1", null, "Oasis-Share")), React.createElement("div", {
+    className: "header-right"
+  }, React.createElement("button", {
+    className: "header-icon-btn",
+    onClick: () => {
+      setShowHistory(true);
+      setShowSettings(false);
+    },
+    title: "History"
+  }, React.createElement(Icons.History, null)), React.createElement("button", {
+    className: "header-icon-btn",
+    onClick: () => {
+      setShowSettings(true);
+      setShowHistory(false);
+    },
+    title: "Settings"
+  }, React.createElement(Icons.Settings, null)), React.createElement("div", {
+    className: "user-pill"
+  }, React.createElement("span", {
+    className: "status-dot-sm",
+    style: {
+      background: connected ? "#4CAF50" : "#9E9E9E"
+    }
+  }), React.createElement("span", null, myUsername)))), React.createElement("main", {
     className: "main-stage"
-  }, !connected && !isConnecting && React.createElement("div", {
-    className: "welcome-stage fade-in"
-  }, React.createElement("h1", {
-    className: "hero-title"
-  }, "Secure p2p", React.createElement("br", null), React.createElement("span", {
-    className: "gradient-text"
-  }, "File Transfer.")), React.createElement("p", {
-    className: "hero-subtitle"
-  }, "No cloud limits. No servers. Direct device connection."), React.createElement("div", {
-    className: "action-cards"
+  }, !connected && React.createElement("div", {
+    className: "connection-panel fade-in"
   }, React.createElement("div", {
-    className: "card glass-card hover-lift",
-    onClick: handleSend
+    className: "panel-row"
   }, React.createElement("div", {
-    className: "icon-circle"
-  }, React.createElement(Icons.Send, null)), React.createElement("h3", null, "Send Files"), React.createElement("p", null, "Generate a code and start sharing instantly.")), React.createElement("div", {
-    className: "card glass-card hover-lift",
-    onClick: () => setShowReceiveInput(true)
-  }, React.createElement("div", {
-    className: "icon-circle"
-  }, React.createElement(Icons.Receive, null)), React.createElement("h3", null, "Receive Files"), React.createElement("p", null, "Enter a connection code to link devices."))), React.createElement("h6", {
-    className: "footer"
-  }, "Signaling with spdc runtime v1.01 ", React.createElement("br", null), " codebyritul@gmail.com ", React.createElement("br", null), "Oasis-share v2.1(beta)")), isConnecting && React.createElement("div", {
-    className: "connecting-stage fade-in"
-  }, React.createElement("div", {
-    className: "radar-spinner"
-  }, React.createElement("div", {
-    className: "ripple"
-  }), React.createElement("div", {
-    className: "ripple delay-1"
-  }), React.createElement("div", {
-    className: "center-dot"
-  })), React.createElement("h2", null, "Establishing Secure Link..."), isInitiator && peerId && React.createElement("div", {
-    className: "code-display glass",
+    className: "panel-card"
+  }, React.createElement("h3", {
+    className: "panel-label"
+  }, "Your Code"), React.createElement("div", {
+    className: "code-block",
     onClick: copyCode
   }, React.createElement("span", {
-    className: "code-label"
-  }, "CONNECTION CODE"), React.createElement("div", {
-    className: "code-value"
-  }, peerId, " ", React.createElement(Icons.Copy, null)), React.createElement("p", {
-    className: "hint"
-  }, "Share this code with the receiver")), !isInitiator && React.createElement("p", {
-    className: "hint"
-  }, "Locating peer..."), React.createElement("button", {
-    className: "cancel-btn-text",
-    onClick: () => {
-      setIsConnecting(false);
-      setPeerId("");
-      window.location.reload();
-    }
-  }, "Cancel")), showReceiveInput && !connected && !isConnecting && React.createElement("div", {
-    className: "modal-overlay fade-in"
-  }, React.createElement("div", {
-    className: "modal glass-card"
-  }, React.createElement("div", {
-    className: "modal-header"
-  }, React.createElement("h3", null, "Connect to Device"), React.createElement("button", {
-    className: "icon-btn",
-    onClick: () => setShowReceiveInput(false)
-  }, React.createElement(Icons.X, null))), React.createElement("div", {
-    className: "modal-body"
+    className: "code-digits"
+  }, myCode), React.createElement("button", {
+    className: "copy-btn",
+    type: "button"
+  }, codeCopied ? React.createElement(Icons.Check, null) : React.createElement(Icons.Copy, null), React.createElement("span", null, codeCopied ? "Copied" : "Copy"))), React.createElement("p", {
+    className: "panel-hint"
+  }, "Share this code with someone to connect")), React.createElement("div", {
+    className: "panel-divider"
+  }, React.createElement("span", null, "or")), React.createElement("div", {
+    className: "panel-card"
+  }, React.createElement("h3", {
+    className: "panel-label"
+  }, "Enter Code"), React.createElement("div", {
+    className: "code-input-row"
   }, React.createElement("input", {
-    type: "number",
-    placeholder: "Enter 6-digit code",
-    value: receiveCode,
-    onChange: e => setReceiveCode(e.target.value),
-    autoFocus: true
+    type: "text",
+    inputMode: "numeric",
+    maxLength: 6,
+    placeholder: "6-digit code",
+    value: peerCode,
+    onChange: e => setPeerCode(e.target.value.replace(/\D/g, "").slice(0, 6)),
+    onKeyDown: e => e.key === "Enter" && handleConnect()
   }), React.createElement("button", {
-    className: "primary-btn full-width",
-    onClick: handleReceive
-  }, "Connect")))), connected && React.createElement("div", {
+    className: "connect-btn",
+    onClick: handleConnect,
+    disabled: isConnecting
+  }, React.createElement(Icons.Link, null), React.createElement("span", null, isConnecting ? "Connecting..." : "Connect"))))), isConnecting && React.createElement("div", {
+    className: "connecting-indicator"
+  }, React.createElement("div", {
+    className: "spinner"
+  }), React.createElement("span", null, "Looking for peer..."))), connected && React.createElement("div", {
+    className: "connected-banner fade-in"
+  }, React.createElement("div", {
+    className: "banner-left"
+  }, React.createElement("span", {
+    className: "status-dot-sm",
+    style: {
+      background: "#4CAF50"
+    }
+  }), React.createElement("span", null, "Connected to ", React.createElement("strong", null, peerUsername || "Peer"))), React.createElement("div", {
+    className: "banner-right"
+  }, isLocalNetwork && React.createElement("div", {
+    className: "lan-badge"
+  }, React.createElement(Icons.Wifi, null), React.createElement("span", null, "Local Network")), React.createElement("button", {
+    className: "disconnect-btn",
+    onClick: handleDisconnect
+  }, React.createElement(Icons.Disconnect, null), React.createElement("span", null, "Disconnect")))), !showHistory && !showSettings && React.createElement("div", {
     className: "dashboard fade-in"
   }, React.createElement("div", {
-    className: "dashboard-header"
+    className: "upload-area"
   }, React.createElement("div", {
-    className: "connection-info glass"
-  }, React.createElement("span", {
-    className: "label"
-  }, "Connected to"), React.createElement("span", {
-    className: "value"
-  }, peerUsername || "Anonymous Peer")), React.createElement("label", {
-    className: "primary-btn upload-btn"
-  }, React.createElement(Icons.Upload, null), " Send Files", React.createElement("input", {
+    className: "share-menu"
+  }, React.createElement("label", {
+    className: "share-menu-item"
+  }, React.createElement(Icons.Upload, null), React.createElement("span", null, "Share File"), React.createElement("input", {
     type: "file",
     multiple: true,
     onChange: handleFileChange,
     hidden: true
-  }))), selectedFiles.length > 0 && React.createElement("div", {
+  })), React.createElement("button", {
+    className: "share-menu-item",
+    onClick: () => setShowTextModal(true)
+  }, React.createElement(Icons.Text, null), React.createElement("span", null, "Share Text")), React.createElement("button", {
+    className: "share-menu-item",
+    onClick: () => folderInputRef.current?.click()
+  }, React.createElement(Icons.Folder, null), React.createElement("span", null, "Share Folder")), React.createElement("button", {
+    className: "share-menu-item",
+    onClick: handleSharePaste
+  }, React.createElement(Icons.Clipboard, null), React.createElement("span", null, "Share Paste"))), React.createElement("input", {
+    ref: folderInputRef,
+    type: "file",
+    webkitdirectory: "",
+    directory: "",
+    multiple: true,
+    onChange: handleFolderChange,
+    hidden: true
+  }), !connected && selectedFiles.length === 0 && React.createElement("p", {
+    className: "queue-hint"
+  }, "Drop files anywhere to add them to the queue"), !connected && selectedFiles.length > 0 && React.createElement("p", {
+    className: "queue-hint"
+  }, "Files will send once connected")), selectedFiles.length > 0 && React.createElement("div", {
     className: "section"
   }, React.createElement("h6", {
     className: "section-title"
-  }, "Queue"), React.createElement("div", {
+  }, "Queue (", selectedFiles.length, ")"), React.createElement("div", {
     className: "file-grid"
   }, selectedFiles.map(f => React.createElement("div", {
     key: f.tempId,
-    className: "file-card glass-interactive"
+    className: "file-card"
   }, React.createElement("div", {
     className: "file-icon"
   }, React.createElement(Icons.File, null)), React.createElement("div", {
@@ -1027,19 +1571,20 @@ function App() {
     className: "meta"
   }, formatBytes(f.size))), React.createElement("button", {
     onClick: () => handleRemoveSelectedFile(f.tempId),
-    className: "icon-btn-sm red"
-  }, React.createElement(Icons.X, null)))))), (Object.keys(sendingProgress).length > 0 || Object.keys(receivingProgress).length > 0) && React.createElement("div", {
+    className: "icon-btn-sm",
+    "aria-label": "Remove file"
+  }, React.createElement(Icons.X, null)))))), hasActiveTransfers && React.createElement("div", {
     className: "section"
   }, React.createElement("h6", {
     className: "section-title"
   }, "Active Transfers"), React.createElement("div", {
     className: "transfers-list"
-  }, Object.values(sendingProgress).map(f => React.createElement("div", {
+  }, allTransfers.map(f => React.createElement("div", {
     key: f.fileId,
-    className: "transfer-row glass"
+    className: "transfer-row"
   }, React.createElement("div", {
-    className: "direction-icon up"
-  }, React.createElement(Icons.Upload, null)), React.createElement("div", {
+    className: `direction-icon ${f.direction}`
+  }, f.direction === "up" ? React.createElement(Icons.Upload, null) : React.createElement(Icons.Download, null)), React.createElement("div", {
     className: "transfer-details"
   }, React.createElement("div", {
     className: "transfer-top"
@@ -1056,60 +1601,281 @@ function App() {
     }
   })), React.createElement("div", {
     className: "transfer-btm"
-  }, React.createElement("span", null, formatBytes(f.size)), React.createElement("button", {
-    className: "text-btn red",
+  }, React.createElement("span", null, formatBytes(f.size)), React.createElement("span", null, f.progress.toFixed(0), "%"), f.direction === "up" && React.createElement("button", {
+    className: "text-btn cancel",
     onClick: () => handleCancelSend(f.fileId)
-  }, "Cancel"))))), Object.values(receivingProgress).map(f => React.createElement("div", {
-    key: f.fileId,
-    className: "transfer-row glass"
-  }, React.createElement("div", {
-    className: "direction-icon down"
-  }, React.createElement(Icons.Download, null)), React.createElement("div", {
-    className: "transfer-details"
-  }, React.createElement("div", {
-    className: "transfer-top"
-  }, React.createElement("span", {
-    className: "name"
-  }, f.name), React.createElement("span", {
-    className: "speed"
-  }, f.speed.toFixed(1), " KB/s")), React.createElement("div", {
-    className: "progress-track"
-  }, React.createElement("div", {
-    className: "progress-fill",
-    style: {
-      width: `${f.progress}%`
-    }
-  })), React.createElement("div", {
-    className: "transfer-btm"
-  }, React.createElement("span", null, formatBytes(f.size)), React.createElement("span", null, f.progress.toFixed(0), "%"))))))), React.createElement("div", {
+  }, "Cancel"), f.direction === "down" && React.createElement("button", {
+    className: "text-btn cancel",
+    onClick: () => handleCancelReceive(f.fileId)
+  }, "Cancel"))))))), React.createElement("div", {
     className: "section grow"
   }, React.createElement("h6", {
     className: "section-title"
-  }, "History"), React.createElement("div", {
-    className: "history-list glass"
-  }, unifiedHistory.length === 0 ? React.createElement("div", {
+  }, "Recent"), React.createElement("div", {
+    className: "history-list"
+  }, unifiedHistory.length === 0 && messageHistory.length === 0 ? React.createElement("div", {
     className: "empty-state"
-  }, "No file history yet.") : unifiedHistory.map((f, i) => React.createElement("div", {
-    key: f.fileId + i,
+  }, connected ? "Send or receive files to see them here" : "Connect to a device to start sharing") : [...unifiedHistory, ...messageHistory.map(m => ({
+    name: m.content.slice(0, 40) + (m.content.length > 40 ? "..." : ""),
+    size: null,
+    time: m.time,
+    direction: m.direction,
+    fileId: m.id,
+    isText: true
+  }))].sort((a, b) => 0).slice(0, 5).map((f, i) => React.createElement("div", {
+    key: (f.fileId || i) + i,
     className: "history-item"
   }, React.createElement("div", {
-    className: `status-dot ${f.direction}`
-  }, f.direction === 'sent' ? React.createElement(Icons.Check, null) : React.createElement(Icons.Download, null)), React.createElement("div", {
+    className: `history-icon ${f.direction}`
+  }, f.isText ? React.createElement(Icons.Text, null) : f.direction === "sent" ? React.createElement(Icons.Upload, null) : React.createElement(Icons.Download, null)), React.createElement("div", {
     className: "file-data"
   }, React.createElement("span", {
     className: "filename"
   }, f.name), React.createElement("div", {
     className: "subtext"
+  }, f.size != null && React.createElement(React.Fragment, null, React.createElement("span", null, formatBytes(f.size)), React.createElement("span", {
+    className: "sep"
+  }, "\u2022")), React.createElement("span", null, f.time), React.createElement("span", {
+    className: `tag ${f.direction}`
+  }, f.direction === "sent" ? "Sent" : "Received")))))))), showHistory && React.createElement("div", {
+    className: "history-screen fade-in"
+  }, React.createElement("div", {
+    className: "overlay-header"
+  }, React.createElement("button", {
+    className: "back-btn",
+    onClick: () => setShowHistory(false)
+  }, React.createElement(Icons.Back, null), React.createElement("span", null, "Back")), React.createElement("h2", null, "Share History")), React.createElement("div", {
+    className: "history-tabs"
+  }, React.createElement("button", {
+    className: `tab-btn ${historyTab === "sent" ? "active" : ""}`,
+    onClick: () => setHistoryTab("sent")
+  }, "Sent"), React.createElement("button", {
+    className: `tab-btn ${historyTab === "received" ? "active" : ""}`,
+    onClick: () => setHistoryTab("received")
+  }, "Received"), React.createElement("button", {
+    className: `tab-btn ${historyTab === "messages" ? "active" : ""}`,
+    onClick: () => setHistoryTab("messages")
+  }, "Messages")), React.createElement("div", {
+    className: "history-list full"
+  }, historyTab === "sent" && (sentFiles.length === 0 ? React.createElement("div", {
+    className: "empty-state"
+  }, "No sent files yet") : sentFiles.map((f, i) => React.createElement("div", {
+    key: f.fileId + i,
+    className: "history-item"
+  }, React.createElement("div", {
+    className: "history-icon sent"
+  }, React.createElement(Icons.Upload, null)), React.createElement("div", {
+    className: "file-data"
   }, React.createElement("span", {
-    className: "size"
-  }, formatBytes(f.size)), React.createElement("span", {
-    className: "separator"
-  }, "\u2022"), React.createElement("span", {
-    className: "time"
-  }, f.time), f.direction === 'sent' ? React.createElement("span", {
-    className: "tag sent"
-  }, "Sent") : React.createElement("span", {
-    className: "tag received"
-  }, "Received"))))))))));
+    className: "filename"
+  }, f.name), React.createElement("div", {
+    className: "subtext"
+  }, React.createElement("span", null, formatBytes(f.size)), React.createElement("span", {
+    className: "sep"
+  }, "\u2022"), React.createElement("span", null, f.time)))))), historyTab === "received" && (receivedFiles.length === 0 ? React.createElement("div", {
+    className: "empty-state"
+  }, "No received files yet") : receivedFiles.map((f, i) => React.createElement("div", {
+    key: f.fileId + i,
+    className: "history-item"
+  }, React.createElement("div", {
+    className: "history-icon received"
+  }, React.createElement(Icons.Download, null)), React.createElement("div", {
+    className: "file-data"
+  }, React.createElement("span", {
+    className: "filename"
+  }, f.name), React.createElement("div", {
+    className: "subtext"
+  }, React.createElement("span", null, formatBytes(f.size)), React.createElement("span", {
+    className: "sep"
+  }, "\u2022"), React.createElement("span", null, f.time), f.speed && React.createElement(React.Fragment, null, React.createElement("span", {
+    className: "sep"
+  }, "\u2022"), React.createElement("span", null, f.speed, " KB/s"))))))), historyTab === "messages" && (messageHistory.length === 0 ? React.createElement("div", {
+    className: "empty-state"
+  }, "No messages yet") : messageHistory.map(m => React.createElement("div", {
+    key: m.id,
+    className: "history-item"
+  }, React.createElement("div", {
+    className: `history-icon ${m.direction}`
+  }, React.createElement(Icons.Text, null)), React.createElement("div", {
+    className: "file-data"
+  }, React.createElement("span", {
+    className: "filename"
+  }, m.content.length > 80 ? m.content.slice(0, 80) + "..." : m.content), React.createElement("div", {
+    className: "subtext"
+  }, React.createElement("span", null, m.time), React.createElement("span", {
+    className: `tag ${m.direction}`
+  }, m.direction === "sent" ? "Sent" : "Received")))))))), showSettings && React.createElement("div", {
+    className: "settings-screen fade-in"
+  }, React.createElement("div", {
+    className: "overlay-header"
+  }, React.createElement("button", {
+    className: "back-btn",
+    onClick: () => setShowSettings(false)
+  }, React.createElement(Icons.Back, null), React.createElement("span", null, "Back")), React.createElement("h2", null, "Settings")), React.createElement("div", {
+    className: "settings-body"
+  }, React.createElement("div", {
+    className: "setting-group"
+  }, React.createElement("h3", {
+    className: "setting-group-title"
+  }, "Transfer"), React.createElement("div", {
+    className: "setting-row"
+  }, React.createElement("div", {
+    className: "setting-label"
+  }, React.createElement("span", null, "Chunk Size"), React.createElement("span", {
+    className: "setting-hint"
+  }, "Override auto-adaptive chunk size (KB). Leave empty for auto.")), React.createElement("input", {
+    type: "number",
+    className: "setting-input",
+    placeholder: "Auto",
+    value: settings.chunkSizeOverride ?? "",
+    onChange: e => {
+      const v = e.target.value === "" ? null : Math.max(8, Math.min(2048, Number(e.target.value)));
+      updateSettings({
+        chunkSizeOverride: v
+      });
+    },
+    min: 8,
+    max: 2048
+  })), React.createElement("div", {
+    className: "setting-row"
+  }, React.createElement("div", {
+    className: "setting-label"
+  }, React.createElement("span", null, "Buffer Threshold (KB)"), React.createElement("span", {
+    className: "setting-hint"
+  }, "Send backpressure threshold. Higher = more buffering.")), React.createElement("input", {
+    type: "number",
+    className: "setting-input",
+    value: settings.bufferThreshold,
+    onChange: e => updateSettings({
+      bufferThreshold: Math.max(64, Math.min(2048, Number(e.target.value) || 256))
+    }),
+    min: 64,
+    max: 2048
+  })), React.createElement("div", {
+    className: "setting-row"
+  }, React.createElement("div", {
+    className: "setting-label"
+  }, React.createElement("span", null, "LAN Speed Boost"), React.createElement("span", {
+    className: "setting-hint"
+  }, "Use larger chunks on local network (512 KB desktop, 128 KB mobile).")), React.createElement("label", {
+    className: "toggle"
+  }, React.createElement("input", {
+    type: "checkbox",
+    checked: settings.enableLanBoost,
+    onChange: e => updateSettings({
+      enableLanBoost: e.target.checked
+    })
+  }), React.createElement("span", {
+    className: "toggle-slider"
+  })))), React.createElement("div", {
+    className: "setting-group"
+  }, React.createElement("h3", {
+    className: "setting-group-title"
+  }, "Connection"), React.createElement("div", {
+    className: "setting-row"
+  }, React.createElement("div", {
+    className: "setting-label"
+  }, React.createElement("span", null, "Connection Timeout (seconds)"), React.createElement("span", {
+    className: "setting-hint"
+  }, "How long to wait before giving up on a connection.")), React.createElement("input", {
+    type: "number",
+    className: "setting-input",
+    value: settings.connectionTimeout,
+    onChange: e => updateSettings({
+      connectionTimeout: Math.max(5, Math.min(120, Number(e.target.value) || 20))
+    }),
+    min: 5,
+    max: 120
+  }))), React.createElement("div", {
+    className: "setting-group"
+  }, React.createElement("h3", {
+    className: "setting-group-title"
+  }, "Current Session Info"), React.createElement("div", {
+    className: "setting-info"
+  }, React.createElement("span", null, "Effective chunk size: ", React.createElement("strong", null, formatBytes(getAdaptiveChunkSize()))), React.createElement("span", null, "Buffer threshold: ", React.createElement("strong", null, formatBytes(BUFFERED_THRESHOLD))), React.createElement("span", null, "Connection timeout: ", React.createElement("strong", null, settings.connectionTimeout, "s")), React.createElement("span", null, "Device memory: ", React.createElement("strong", null, navigator.deviceMemory || "unknown", " GB")), React.createElement("span", null, "Platform: ", React.createElement("strong", null, detectMobile() ? "Mobile" : "Desktop")), React.createElement("span", null, "Network: ", React.createElement("strong", null, isLocalNetwork ? "LAN" : "WAN")))))), React.createElement("div", {
+    className: "app-footer"
+  }, "Oasis-Share v3.1 \u2022 spdc runtime v2 \u2022 codebyritul@gmail.com"))), showTextModal && React.createElement("div", {
+    className: "modal-overlay",
+    onClick: () => setShowTextModal(false)
+  }, React.createElement("div", {
+    className: "modal-box",
+    onClick: e => e.stopPropagation()
+  }, React.createElement("h3", null, "Share Text"), React.createElement("textarea", {
+    className: "modal-textarea",
+    placeholder: "Type or paste text to share...",
+    value: textInput,
+    onChange: e => setTextInput(e.target.value),
+    autoFocus: true,
+    rows: 5
+  }), React.createElement("div", {
+    className: "modal-actions"
+  }, React.createElement("button", {
+    className: "modal-btn secondary",
+    onClick: () => {
+      setShowTextModal(false);
+      setTextInput("");
+    }
+  }, "Cancel"), React.createElement("button", {
+    className: "modal-btn primary",
+    onClick: handleSendText,
+    disabled: !textInput.trim()
+  }, "Send")))), showPastePreview && pasteContent && React.createElement("div", {
+    className: "modal-overlay",
+    onClick: () => {
+      setShowPastePreview(false);
+      setPasteContent(null);
+    }
+  }, React.createElement("div", {
+    className: "modal-box",
+    onClick: e => e.stopPropagation()
+  }, React.createElement("h3", null, "Paste Preview"), pasteContent.type === "text" && React.createElement("div", {
+    className: "paste-preview-text"
+  }, pasteContent.data.length > 500 ? pasteContent.data.slice(0, 500) + "..." : pasteContent.data), pasteContent.type === "image" && React.createElement("div", {
+    className: "paste-preview-image"
+  }, React.createElement("img", {
+    src: pasteContent.data,
+    alt: "Clipboard"
+  })), React.createElement("div", {
+    className: "modal-actions"
+  }, React.createElement("button", {
+    className: "modal-btn secondary",
+    onClick: () => {
+      setShowPastePreview(false);
+      setPasteContent(null);
+    }
+  }, "Cancel"), React.createElement("button", {
+    className: "modal-btn primary",
+    onClick: handleConfirmPaste
+  }, pasteContent.type === "text" ? "Send Text" : "Add to Queue")))), React.createElement("aside", {
+    className: "changelog-sidebar dark-mode"
+  }, React.createElement("div", {
+    className: "changelog-header"
+  }, React.createElement("h2", null, "Updates")), React.createElement("div", {
+    className: "changelog-content"
+  }, React.createElement("div", {
+    className: "changelog-section"
+  }, React.createElement("div", {
+    className: "changelog-version"
+  }, "v3.1"), React.createElement("div", {
+    className: "changelog-date"
+  }, "Current"), React.createElement("ul", {
+    className: "changelog-items"
+  }, React.createElement("li", null, "Share text, folders & clipboard"), React.createElement("li", null, "Disconnect button"), React.createElement("li", null, "Full share history screen"), React.createElement("li", null, "Settings panel with speed tuning"), React.createElement("li", null, "LAN speed boost (bigger chunks)"), React.createElement("li", null, "Receiver-side cancel"))), React.createElement("div", {
+    className: "changelog-section"
+  }, React.createElement("div", {
+    className: "changelog-version"
+  }, "v3.0"), React.createElement("div", {
+    className: "changelog-date"
+  }, "Previous"), React.createElement("ul", {
+    className: "changelog-items"
+  }, React.createElement("li", null, "Direct LAN connection optimized"), React.createElement("li", null, "Removed external relay servers"), React.createElement("li", null, "Improved reliability on local networks"), React.createElement("li", null, "Cleaner UI without debug logs"))), React.createElement("div", {
+    className: "changelog-section"
+  }, React.createElement("div", {
+    className: "changelog-version"
+  }, "Upcoming"), React.createElement("div", {
+    className: "changelog-date"
+  }, "v3.2"), React.createElement("ul", {
+    className: "changelog-items"
+  }, React.createElement("li", null, "Parallel multi-stream transfers"), React.createElement("li", null, "Transfer history export"), React.createElement("li", null, "Custom naming for sessions"))))));
 }
 export default App;
